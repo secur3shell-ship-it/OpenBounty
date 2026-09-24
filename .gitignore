@@ -1,0 +1,21 @@
+# Build output (includes target/deploy/*-keypair.json, the program keypair)
+target
+**/*.rs.bk
+
+# Anchor / local network state
+.anchor
+test-ledger
+.surfpool
+
+# JavaScript
+node_modules
+.yarn
+
+# Secrets: never commit keypairs, wallets or environment files
+*-keypair.json
+id.json
+.env
+.env.*
+
+# OS / editor
+.DS_Store

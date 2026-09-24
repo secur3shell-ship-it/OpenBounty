@@ -1,0 +1,28 @@
+[package]
+name = "openbounty_v2"
+version = "0.1.0"
+description = "OpenBounty: trustless on-chain escrow for hackathon prize bounties"
+edition.workspace = true
+rust-version.workspace = true
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "openbounty_v2"
+
+[features]
+default = []
+cpi = ["no-entrypoint"]
+no-entrypoint = []
+no-log-ix-name = []
+idl-build = ["anchor-lang/idl-build"]
+anchor-debug = []
+custom-heap = []
+custom-panic = []
+
+
+[dependencies]
+anchor-lang = "=1.2.0"
+
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(target_os, values("solana"))'] }
