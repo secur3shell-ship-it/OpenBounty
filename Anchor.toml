@@ -17,9 +17,19 @@ openbounty_v2 = "HTvHgRG4uHnj1KQeynNXsKEvBE3oqsc9TxRaGTgqgEk4"
 
 # Default target is the local network started by `anchor test` (Surfpool,
 # offline). Deploy to devnet with `anchor deploy --provider.cluster devnet`.
+#
+# OpenBounty keys are isolated from every other project: never point this at
+# ~/.config/solana/id.json. The deployer pays for tests and deployments and is
+# the program's upgrade authority on devnet. See README "Keys and wallets".
 [provider]
 cluster = "localnet"
-wallet = "~/.config/solana/id.json"
+wallet = "~/.config/openbounty/keys/deployer.json"
 
 [scripts]
 test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 \"tests/**/*.test.ts\""
+
+# Plain `anchor test` would start Surfpool with ~/.config/solana/id.json, which
+# belongs to another project. This guard runs before any validator starts and
+# only lets through `yarn test` (scripts/test-local.sh) and `yarn test:legacy`.
+[hooks]
+pre-test = '[ "${OPENBOUNTY_TEST_ISOLATED:-}" = 1 ] || [ "${ANCHOR_TEST_VALIDATOR:-}" = legacy ] || { echo "error: run yarn test or yarn test:legacy; plain anchor test makes Surfpool use ~/.config/solana/id.json" >&2; exit 1; }'

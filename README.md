@@ -106,6 +106,13 @@ All limits are defined in
 | `MAX_PRIZE_TIERS`         | 4     |
 | `MAX_TITLE_LENGTH`        | 50    |
 | `MAX_METADATA_URI_LENGTH` | 100   |
+| `MIN_PRIZE_AMOUNT`        | 1,000,000 lamports (0.001 SOL) |
+
+Each prize tier must also be at least the rent-exempt minimum for a data-less
+account (650,240 lamports today). That way paying a brand-new wallet can never
+fail on rent, even if rent rises. `MIN_PRIZE_AMOUNT` and the seeds are exported
+in the IDL; the `usize` limits aren't (see
+[Current limitations](#current-limitations)).
 
 ## Repository layout
 
@@ -118,9 +125,10 @@ All limits are defined in
 │   ├── state/                 # Escrow, PrizeTier, Vote (+ sizing tests)
 │   └── instructions/          # one file per instruction: accounts + handler
 ├── tests/
-│   ├── openbounty_v2.test.ts  # integration tests (run by `anchor test`)
+│   ├── openbounty_v2.test.ts  # integration tests (run by `yarn test`)
 │   └── helpers/               # shared test utilities (PDA derivation)
-├── Anchor.toml                # toolchain pins, program IDs, clusters, test script
+├── scripts/test-local.sh      # isolated local test run (see "Keys and wallets")
+├── Anchor.toml                # toolchain pins, program IDs, clusters, wallet, test guard
 ├── Cargo.toml                 # Rust workspace
 ├── rust-toolchain.toml        # host Rust toolchain (IDL build, cargo test)
 ├── package.json / yarn.lock   # TypeScript test tooling
@@ -169,6 +177,40 @@ avm solana install          # installs/activates the Solana version pinned in An
 yarn install
 ```
 
+Then create the OpenBounty wallet and CLI config once per machine (see
+[Keys and wallets](#keys-and-wallets)).
+
+### Keys and wallets
+
+OpenBounty never uses `~/.config/solana/id.json` or the global Solana CLI
+config (`~/.config/solana/cli/config.yml`). Both belong to other work on the
+same machine. All OpenBounty keys live in `~/.config/openbounty/`, outside the
+repository:
+
+| Key or file | Location | Role |
+| ----------- | -------- | ---- |
+| Deployer wallet | `~/.config/openbounty/keys/deployer.json` | `[provider] wallet` in `Anchor.toml`. Pays for local tests and deployments, and is the program's upgrade authority on devnet |
+| Solana CLI config | `~/.config/openbounty/solana-cli.yml` | Points the `solana` CLI at devnet and the deployer. Pass it with `-C` on every OpenBounty `solana` command |
+| Program keypair | `target/deploy/openbounty_v2-keypair.json` | Defines the program ID (see [Program ID](#program-id)). Gitignored; keep a backup |
+
+One-time setup per machine:
+
+```bash
+mkdir -p ~/.config/openbounty/keys && chmod 700 ~/.config/openbounty ~/.config/openbounty/keys
+solana-keygen new -o ~/.config/openbounty/keys/deployer.json   # write down the seed phrase
+solana config set -C ~/.config/openbounty/solana-cli.yml \
+  --url devnet --keypair ~/.config/openbounty/keys/deployer.json --commitment confirmed
+```
+
+Rules:
+
+- Never run `solana config set` without `-C ~/.config/openbounty/solana-cli.yml`.
+  Without it, the command edits the global config.
+- Run OpenBounty `solana` commands as
+  `solana -C ~/.config/openbounty/solana-cli.yml <command>`.
+- Keep any new authority or key under `~/.config/openbounty/keys/`, never in
+  the repository.
+
 ### Program ID
 
 The program ID is the public key of `target/deploy/openbounty_v2-keypair.json`.
@@ -196,13 +238,22 @@ Produces `target/deploy/openbounty_v2.so`, the IDL at
 ### Test
 
 ```bash
-anchor test                               # build, start Surfpool (offline), deploy, run tests
-ANCHOR_TEST_VALIDATOR=legacy anchor test  # same, on solana-test-validator
-cargo test -p openbounty_v2               # Rust unit tests (account sizing)
-yarn typecheck                            # type-check the TS tests
+yarn test                    # build, start Surfpool (offline) funded only for the deployer, deploy, run tests
+yarn test:legacy             # same, on solana-test-validator
+cargo test -p openbounty_v2  # Rust unit tests (account sizing)
+yarn typecheck               # type-check the TS tests
 ```
 
-`anchor test` runs every `tests/**/*.test.ts`. Put shared helpers in
+Don't run plain `anchor test`. Anchor starts Surfpool with its default airdrop
+keypair, `~/.config/solana/id.json`, and makes that key the local upgrade
+authority, and Anchor 1.2.0 has no setting to change this. A `pre-test` hook in
+`Anchor.toml` stops plain `anchor test` before any validator starts.
+`yarn test` (`scripts/test-local.sh`) starts Surfpool itself with the
+deployer wallet. `yarn test:legacy` funds the deployer through
+`solana-test-validator --mint`. Extra arguments go through to `anchor test`,
+e.g. `yarn test --skip-build`.
+
+The suites are every `tests/**/*.test.ts`. Put shared helpers in
 `tests/helpers/`.
 
 ## Devnet
@@ -212,16 +263,21 @@ Cluster selection lives only in tooling config, never in program logic.
 program ID.
 
 ```bash
-solana config set --url devnet
-solana airdrop 2                                   # deployer wallet (~/.config/solana/id.json)
+solana -C ~/.config/openbounty/solana-cli.yml airdrop 2   # fund the OpenBounty deployer on devnet
 anchor build
-anchor deploy --provider.cluster devnet
+anchor deploy --provider.cluster devnet                   # payer and upgrade authority: the deployer
 ```
 
 `anchor deploy` needs the program keypair described in
 [Program ID](#program-id). It also publishes the IDL on-chain through Program
 Metadata (skip this with `--no-idl`). Update a published IDL with
 `anchor idl upgrade`.
+
+Upgrade authority: on devnet the program stays upgradeable, with the deployer
+as its upgrade authority, so it can be iterated on. On mainnet it will be
+made immutable (`solana program set-upgrade-authority <PROGRAM_ID> --final`)
+after an audit and a verifiable build, so no key can change the rules once
+bounties hold real funds.
 
 ## Integration boundary (IDL)
 
@@ -235,6 +291,10 @@ The frontend developer should use:
 
 Error codes start at 6000. New variants are only appended, never reordered,
 because clients match on the codes.
+
+`target/` is gitignored. For now the project owner sends the IDL (and, for
+local testing, `openbounty_v2.so`) to the frontend developer after every
+rebuild, together with the commit hash. The program keypair is never shared.
 
 ## Current limitations
 

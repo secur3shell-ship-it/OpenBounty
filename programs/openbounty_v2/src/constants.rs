@@ -1,9 +1,9 @@
 //! Protocol constants. Every protocol limit and PDA seed lives here so it can
 //! be changed in one place.
 //!
-//! The limits are `usize` because `#[max_len]` account sizing needs them in
-//! `usize` arithmetic. `#[constant]` can't export `usize` to the IDL, so only
-//! the seeds appear there.
+//! The size limits are `usize` because `#[max_len]` account sizing needs them
+//! in `usize` arithmetic. `#[constant]` can't export `usize` to the IDL, so
+//! only the seeds and `MIN_PRIZE_AMOUNT` appear there.
 
 use anchor_lang::prelude::*;
 
@@ -26,3 +26,9 @@ pub const MAX_TITLE_LENGTH: usize = 50;
 
 /// Maximum metadata URI length, in bytes (UTF-8).
 pub const MAX_METADATA_URI_LENGTH: usize = 100;
+
+/// Minimum prize per tier, in lamports (0.001 SOL). Tiers must also be at
+/// least the rent-exempt minimum for a data-less account, so a payout can
+/// never fail because the recipient would be left below rent exemption.
+#[constant]
+pub const MIN_PRIZE_AMOUNT: u64 = 1_000_000;

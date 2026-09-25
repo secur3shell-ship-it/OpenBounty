@@ -52,7 +52,10 @@ pub fn handle_initialize_escrow(
     //  - Validate params against the protocol limits in `constants`: title
     //    and URI byte lengths, 1..=MAX_JUDGES unique judges excluding the
     //    organizer, 1 <= vote_threshold <= judges.len(), 1..=MAX_PRIZE_TIERS
-    //    non-zero amounts with a checked sum, deadline > Clock::unix_timestamp.
+    //    amounts with a checked sum, deadline > Clock::unix_timestamp.
+    //  - Each amount must be >= max(MIN_PRIZE_AMOUNT,
+    //    Rent::get()?.minimum_balance(0)) (InvalidPrizeAmount), so paying a
+    //    brand-new wallet can't fail on rent even if rent rises.
     //  - Write escrow state, including both bumps.
     //  - Transfer the full prize pool from organizer to vault (system program
     //    CPI) and check that the vault balance grew by exactly that amount.

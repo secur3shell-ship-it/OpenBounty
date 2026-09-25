@@ -7,6 +7,8 @@
     "node": ">=20.18"
   },
   "scripts": {
+    "test": "bash scripts/test-local.sh",
+    "test:legacy": "ANCHOR_TEST_VALIDATOR=legacy anchor test",
     "typecheck": "tsc --noEmit -p ./tsconfig.json"
   },
   "dependencies": {

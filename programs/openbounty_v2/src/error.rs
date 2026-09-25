@@ -22,7 +22,7 @@ pub enum OpenBountyError {
     InvalidVoteThreshold,
     #[msg("Prize tier list is empty or exceeds the maximum number of tiers")]
     InvalidPrizeTierCount,
-    #[msg("Prize tier amount must be greater than zero")]
+    #[msg("Prize tier amount is below the minimum")]
     InvalidPrizeAmount,
     #[msg("Total prize pool overflows")]
     PrizePoolOverflow,
