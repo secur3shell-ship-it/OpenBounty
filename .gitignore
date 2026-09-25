@@ -17,5 +17,8 @@ id.json
 .env
 .env.*
 
+# Local context and handoff docs (shared by hand, never committed)
+doc/
+
 # OS / editor
 .DS_Store
