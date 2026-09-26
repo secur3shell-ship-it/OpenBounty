@@ -7,6 +7,12 @@ package_manager = "yarn"
 resolution = true
 skip-lint = false
 
+# Every build also writes the IDL to idl/openbounty_v2.json. That copy is
+# committed, so the frontend always gets the IDL that matches the code with a
+# plain `git pull`.
+[workspace]
+idls = "idl"
+
 # The program ID is the public key of target/deploy/openbounty_v2-keypair.json
 # (gitignored). See README "Program ID" before deploying from a fresh clone.
 [programs.localnet]

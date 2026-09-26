@@ -9,13 +9,15 @@ vote threshold, and the winner claims the prize with no one's approval. After
 the deadline, the organizer can reclaim only prize funds that are eligible for
 refund.
 
-This repository contains **only the on-chain program**. The frontend is out of
-scope and will be built separately against the generated IDL (see
-[Integration boundary](#integration-boundary-idl)).
+This repository currently contains **only the on-chain program**. The frontend
+is built by another developer, in a planned `offchain/` folder, against the
+committed IDL (see [Integration boundary](#integration-boundary-idl)).
 
-> **Status: scaffold.** The account model, PDAs, instruction interfaces, errors
-> and IDL are in place and tested. The four instruction handlers currently
-> return `NotImplemented`. See [Current limitations](#current-limitations).
+> **Status: scaffold, deployed on devnet.** The account model, PDAs,
+> instruction interfaces, errors and IDL are in place and tested. The program
+> is live on devnet (deployed 2026-09-26, upgradeable by the OpenBounty
+> deployer), but the four instruction handlers still return `NotImplemented`.
+> See [Current limitations](#current-limitations).
 
 ## Names
 
@@ -127,8 +129,9 @@ in the IDL; the `usize` limits aren't (see
 ├── tests/
 │   ├── openbounty_v2.test.ts  # integration tests (run by `yarn test`)
 │   └── helpers/               # shared test utilities (PDA derivation)
+├── idl/openbounty_v2.json     # the IDL, refreshed by every build and committed (for the frontend)
 ├── scripts/test-local.sh      # isolated local test run (see "Keys and wallets")
-├── Anchor.toml                # toolchain pins, program IDs, clusters, wallet, test guard
+├── Anchor.toml                # toolchain pins, program IDs, clusters, wallet, IDL copy, test guard
 ├── Cargo.toml                 # Rust workspace
 ├── rust-toolchain.toml        # host Rust toolchain (IDL build, cargo test)
 ├── package.json / yarn.lock   # TypeScript test tooling
@@ -265,10 +268,10 @@ program ID.
 ```bash
 solana -C ~/.config/openbounty/solana-cli.yml airdrop 2   # fund the OpenBounty deployer on devnet
 anchor build
-anchor deploy --provider.cluster devnet                   # payer and upgrade authority: the deployer
+anchor program deploy --provider.cluster devnet           # payer and upgrade authority: the deployer
 ```
 
-`anchor deploy` needs the program keypair described in
+`anchor program deploy` (Anchor 1.2 deprecates the older `anchor deploy`) needs the program keypair described in
 [Program ID](#program-id). It also publishes the IDL on-chain through Program
 Metadata (skip this with `--no-idl`). Update a published IDL with
 `anchor idl upgrade`.
@@ -281,20 +284,23 @@ bounties hold real funds.
 
 ## Integration boundary (IDL)
 
-The frontend developer should use:
+The frontend uses **`idl/openbounty_v2.json`**. It lists the instructions,
+accounts, types, errors and seed constants, plus the PDA seeds for `escrow`
+and `vault`, so clients can derive both addresses.
 
-- `target/idl/openbounty_v2.json`: instructions, accounts, types, errors,
-  seed constants, and PDA seed metadata for `escrow` and `vault`, so clients
-  can derive both.
-- `target/types/openbounty_v2.ts` and `target/types/openbounty_v2_errors.ts`:
-  generated TypeScript types.
+How the IDL reaches the frontend after every build:
+
+1. Every `anchor build` (and every `yarn test`, which builds first) writes the
+   IDL to `target/idl/` and also to `idl/openbounty_v2.json`, because of
+   `[workspace] idls = "idl"` in `Anchor.toml`.
+2. `idl/` is committed. When the program's interface changes, the IDL change
+   is committed together with the program change.
+3. The frontend runs `git pull` and regenerates its client from
+   `idl/openbounty_v2.json`. Git history shows exactly which program commit
+   each IDL came from.
 
 Error codes start at 6000. New variants are only appended, never reordered,
-because clients match on the codes.
-
-`target/` is gitignored. For now the project owner sends the IDL (and, for
-local testing, `openbounty_v2.so`) to the frontend developer after every
-rebuild, together with the commit hash. The program keypair is never shared.
+because clients match on the codes. The program keypair is never shared.
 
 ## Current limitations
 
@@ -321,4 +327,5 @@ rebuild, together with the commit hash. The program keypair is never shared.
 - **Limits aren't in the IDL.** They are `usize`, as account sizing needs,
   and `#[constant]` can't export `usize`. Clients should mirror
   `constants.rs`.
-- **No frontend, backend or indexer** is in scope for this repository.
+- **No frontend yet.** It's planned in `offchain/` and built by another
+  developer. There is no backend or indexer, by design.
