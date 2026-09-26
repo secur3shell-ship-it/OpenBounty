@@ -9,6 +9,7 @@
   "scripts": {
     "test": "bash scripts/test-local.sh",
     "test:legacy": "ANCHOR_TEST_VALIDATOR=legacy anchor test",
+    "deploy:devnet": "bash scripts/deploy-devnet.sh",
     "typecheck": "tsc --noEmit -p ./tsconfig.json"
   },
   "dependencies": {

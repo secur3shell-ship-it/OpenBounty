@@ -193,7 +193,7 @@ repository:
 | Key or file | Location | Role |
 | ----------- | -------- | ---- |
 | Deployer wallet | `~/.config/openbounty/keys/deployer.json` | `[provider] wallet` in `Anchor.toml`. Pays for local tests and deployments, and is the program's upgrade authority on devnet |
-| Solana CLI config | `~/.config/openbounty/solana-cli.yml` | Points the `solana` CLI at devnet and the deployer. Pass it with `-C` on every OpenBounty `solana` command |
+| Solana CLI config | `~/.config/openbounty/solana-cli.yml` | Points the `solana` CLI at our private devnet RPC (its URL holds an API key, so it's never committed) and the deployer. Pass it with `-C` on every OpenBounty `solana` command. `yarn deploy:devnet` reads the RPC URL from it |
 | Program keypair | `target/deploy/openbounty_v2-keypair.json` | Defines the program ID (see [Program ID](#program-id)). Gitignored; keep a backup |
 
 One-time setup per machine:
@@ -266,15 +266,32 @@ Cluster selection lives only in tooling config, never in program logic.
 program ID.
 
 ```bash
-solana -C ~/.config/openbounty/solana-cli.yml airdrop 2   # fund the OpenBounty deployer on devnet
 anchor build
-anchor program deploy --provider.cluster devnet           # payer and upgrade authority: the deployer
+yarn deploy:devnet      # deploys, or upgrades in place; payer and upgrade authority: the deployer
 ```
 
-`anchor program deploy` (Anchor 1.2 deprecates the older `anchor deploy`) needs the program keypair described in
-[Program ID](#program-id). It also publishes the IDL on-chain through Program
-Metadata (skip this with `--no-idl`). Update a published IDL with
-`anchor idl upgrade`.
+`yarn deploy:devnet` runs [scripts/deploy-devnet.sh](scripts/deploy-devnet.sh):
+
+- It uses the RPC URL from `~/.config/openbounty/solana-cli.yml`. We use a
+  private Helius devnet endpoint, because the public
+  `https://api.devnet.solana.com` often drops account lookups. The URL
+  contains an API key, so it lives only in that file, outside the repo.
+- Without that file, the script falls back to the public endpoint.
+- It refuses to run against anything that isn't devnet.
+
+To use your own endpoint:
+
+```bash
+solana config set -C ~/.config/openbounty/solana-cli.yml --url "<your devnet RPC URL>"
+```
+
+The script runs `anchor program deploy` (Anchor 1.2 deprecates the older
+`anchor deploy`). The first deploy needs the program keypair described in
+[Program ID](#program-id). Upgrades need only the upgrade authority.
+Deploying also publishes the IDL on-chain through Program Metadata (skip this
+with `--no-idl`). To fund the deployer, run
+`solana -C ~/.config/openbounty/solana-cli.yml airdrop 1`, or use
+https://faucet.solana.com if the airdrop is rate-limited.
 
 Upgrade authority: on devnet the program stays upgradeable, with the deployer
 as its upgrade authority, so it can be iterated on. On mainnet it will be
