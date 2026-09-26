@@ -9,9 +9,10 @@ vote threshold, and the winner claims the prize with no one's approval. After
 the deadline, the organizer can reclaim only prize funds that are eligible for
 refund.
 
-This repository currently contains **only the on-chain program**. The frontend
-is built by another developer, in a planned `offchain/` folder, against the
-committed IDL (see [Integration boundary](#integration-boundary-idl)).
+This repository holds the on-chain program and, in [`offchain/`](offchain/README.md),
+the frontend. The frontend is a scaffolded Next.js app built against the
+committed IDL (see [Integration boundary](#integration-boundary-idl)); its
+features are being built on top of that scaffold.
 
 > **Status: scaffold, deployed on devnet.** The account model, PDAs,
 > instruction interfaces, errors and IDL are in place and tested. The program
@@ -130,6 +131,7 @@ in the IDL; the `usize` limits aren't (see
 │   ├── openbounty_v2.test.ts  # integration tests (run by `yarn test`)
 │   └── helpers/               # shared test utilities (PDA derivation)
 ├── idl/openbounty_v2.json     # the IDL, refreshed by every build and committed (for the frontend)
+├── offchain/                 # the frontend (Next.js + Solana Kit); see offchain/README.md
 ├── scripts/test-local.sh      # isolated local test run (see "Keys and wallets")
 ├── Anchor.toml                # toolchain pins, program IDs, clusters, wallet, IDL copy, test guard
 ├── Cargo.toml                 # Rust workspace
@@ -327,22 +329,25 @@ because clients match on the codes. The program keypair is never shared.
   deadline, tier state) are still TODOs. Each handler returns
   `NotImplemented`. A failing call rolls back entirely, and a test checks
   that.
-- **`NotImplemented` is temporary.** It is the last error variant so that
-  removing it doesn't renumber the others.
-- **Open protocol questions.** These must be decided before implementing
-  voting and refunds:
-  - Can a judge change their vote before the tier finalizes?
-  - Can votes land after the deadline, and how do they interact with refunds?
-  - After the deadline, is a finalized but unclaimed tier refundable, or only
-    tiers that never finalized?
-  - Can one candidate win several tiers? Which candidates are invalid (the
-    organizer at minimum; judges?)?
-  - Should `vote_threshold` require a majority of judges?
-- **Vault rent.** A system account can't be left holding less than the
-  rent-exempt minimum (other than zero), so the vault needs a rent reserve
-  until final cleanup. The initialization TODO describes this.
+- **`NotImplemented` is temporary.** It is the last error variant, and new
+  errors are inserted just before it, so removing it later doesn't renumber
+  any real error.
+- **Protocol rules (decided 2026-09-26, implemented as each handler lands):**
+  - Votes are final, and voting closes at the deadline.
+  - The vote threshold must be a strict majority of the judges.
+  - Invalid candidates: the organizer, any judge, the system program address,
+    and the bounty's own escrow and vault. One candidate may win several
+    prizes.
+  - A finalized prize always belongs to its winner, who can claim it even
+    after the deadline. After the deadline (strictly), the organizer can
+    refund only prizes that never got a winner.
+  - The metadata URI is optional. The deadline must be in the future and at
+    most one year away.
+  - No vault rent reserve: every prize is at least the empty-account rent
+    minimum, and the last settlement sweeps the vault to zero.
+  - Each instruction emits Anchor events.
 - **Limits aren't in the IDL.** They are `usize`, as account sizing needs,
   and `#[constant]` can't export `usize`. Clients should mirror
   `constants.rs`.
-- **No frontend yet.** It's planned in `offchain/` and built by another
-  developer. There is no backend or indexer, by design.
+- **The frontend is a scaffold** (wallet, reads, helpers, rules), with its
+  features in progress. There is no backend or indexer, by design.
