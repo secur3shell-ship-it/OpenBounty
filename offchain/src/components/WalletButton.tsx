@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 import type { Address } from '@solana/kit';
 import {
   useConnect,
@@ -65,9 +65,26 @@ function Inner() {
   );
 }
 
+const noopSubscribe = () => () => {};
+
+/** false on the server and during hydration, true after. */
+function useHydrated() {
+  return useSyncExternalStore(
+    noopSubscribe,
+    () => true,
+    () => false,
+  );
+}
+
 export function WalletButton() {
+  // The wallet hooks give the server the browser's snapshot too, so the first
+  // client render can differ from the server HTML ("Loading wallets…").
+  // Render the fallback until hydration is done, then show the real state.
+  const hydrated = useHydrated();
+  const fallback = <span className="text-sm">Loading wallets…</span>;
+  if (!hydrated) return fallback;
   return (
-    <WalletReadyGate client={client} fallback={<span className="text-sm">Loading wallets…</span>}>
+    <WalletReadyGate client={client} fallback={fallback}>
       <Inner />
     </WalletReadyGate>
   );
