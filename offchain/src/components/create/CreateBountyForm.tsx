@@ -16,6 +16,7 @@ import JudgesField from "./JudgesField";
 import PrizeTiersField from "./PrizeTiersField";
 import TimelineField from "./TimelineField";
 import CreateSuccess from "./CreateSuccess";
+import MetadataBuilder from "./MetadataBuilder";
 import {
   CreateBountyValues,
   CreatedBounty,
@@ -158,6 +159,7 @@ export default function CreateBountyForm() {
               aria-describedby={messageId("metadata-uri")}
             />
           </FormField>
+          <MetadataBuilder formValues={values} />
         </div>
 
         <Separator />

@@ -176,3 +176,13 @@ describe('error messages', () => {
     for (const code of codes) expect(PROGRAM_ERROR_MESSAGES[code], `error ${code}`).toBeTruthy();
   });
 });
+
+describe('describeError', () => {
+  it("doesn't blame our program for another program's custom error", async () => {
+    const { SolanaError, SOLANA_ERROR__INSTRUCTION_ERROR__CUSTOM } = await import('@solana/kit');
+    const { describeError } = await import('@/lib/errors');
+    const custom = (code: number) => new SolanaError(SOLANA_ERROR__INSTRUCTION_ERROR__CUSTOM, { code, index: 0 });
+    expect(describeError(custom(1))).toMatch(/enough SOL/);
+    expect(describeError(custom(generated.OPENBOUNTY_V2_ERROR__DUPLICATE_VOTE))).toMatch(/already voted/);
+  });
+});

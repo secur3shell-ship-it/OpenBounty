@@ -102,6 +102,8 @@ Amounts are lamports and times are unix seconds, both as `bigint`, exactly as th
 | `useBountyActions(escrow)` | `vote(tier, candidate)`, `claim(tier)`, `refund()` (every prize refundable now, in one transaction), `submitEntry(values)`, `closeEntry()`, plus `pending` (`"vote-0"`, `"claim-1"`, `"refund"`, `"submit"`, `"close-entry"`) for spinners. Each action returns the signature or throws; the caller shows the toast. |
 | `useCreateBounty` | `createBounty(values)` and `submitting`. The same file exports `validateForm` (instant form checks) and `hasErrors`. `createBounty` checks again against network time and the live rent minimum, finds a free nonce, then sends. |
 | `useBalance` | The connected wallet's balance in lamports, or `null` |
+| `useMyEntries` | Your entries on every bounty (matched to their bounty, or `null` once it closed), the entry rent, and `closeEntry(entry)` |
+| `useClaimSignatures` | tierIndex → claim transaction for a bounty's claimed prizes, read with `lib/history.ts` |
 | `useScorecard(bounty, judge)` | `scorecard` and `saveScore` |
 | `useMarketQuotes`, `usePriceHistory`, `useNews` | Live prices, chart history and news from the market feed (see [../features/markets-feed.md](../features/markets-feed.md)) |
 | `useNow`, `useElementWidth` | A ticking clock for "Updated 12s ago", and an element's width for drawing charts at the exact size |
@@ -111,8 +113,9 @@ Amounts are lamports and times are unix seconds, both as `bigint`, exactly as th
 | Path | What's there |
 |---|---|
 | `lib/client.ts` | The one Kit client: wallet signer (`client.identity`), RPC (`client.rpc`) and the typed program (`client.openbountyV2`) |
-| `lib/queries.ts` | `listAllEscrows`, `listEscrowsByOrganizer`, `fetchEscrowOrNull`, `listSubmissions`, `findFreeNonce`. Reads use `getProgramAccounts`; there is no indexer. |
+| `lib/queries.ts` | `listAllEscrows`, `listEscrowsByOrganizer`, `fetchEscrowOrNull`, `listSubmissions`, `listSubmissionsBySubmitter`, `findFreeNonce`. Reads use `getProgramAccounts`; there is no indexer. |
 | `lib/instructions.ts` | `buildCreateBounty`, `buildVote`, `buildClaim`, `buildRefund`, `buildSubmitEntry`, `buildCloseEntry` |
+| `lib/history.ts` | `findClaimSignatures(escrow, since, tiers)`: finds claim transactions in the escrow's history by decoding the program's `PrizeClaimed` events from the logs (no indexer). Transactions older than the bounty's `createdAt` are skipped, because a closed bounty's address can be reused. |
 | `lib/pda.ts` | `findEscrowPda`, `findVaultPda`, `findSubmissionPda` |
 | `lib/chain.ts` | `networkNow` (use it, not `Date.now()`, for final deadline checks), `getBalanceLamports`, `getRentMinimum` |
 | `lib/errors.ts` | Friendly text for every program error and common wallet errors, and `UserFacingError` for messages that are already written for users |

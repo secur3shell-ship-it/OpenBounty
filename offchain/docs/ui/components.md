@@ -84,15 +84,16 @@ Page layout: `app/layout.tsx` wraps every page in `<main className="mx-auto w-fu
 | `BountyCardSkeleton` | Loading placeholder with the same shape | none |
 | `BountyStatusBadge` | "Open" (green), "Ending soon" (ochre), "Judging" (ochre fill), "Ended" (muted). Styles come from `STATUS_STYLES`. | `status` |
 | `TierStatusBadge` | "Awaiting votes", "Voting · 2 of 3", "Winner picked", "Claimed", "No winner" (judging ended without a winner), "Unclaimed" (the claim window closed) or "Refunded" | `progress` (from `getTierProgress`), `threshold` |
-| `TierCard` | One prize on the Prizes tab: place and amount, status, then the winner or a vote progress bar with each candidate's votes. It says until when the winner can claim, or that the claim window closed. Shows "Vote for a winner" to judges who haven't voted (while judging is open) and "Claim X SOL" to the winner while the claim window is open. | `escrow`, `tierIndex`, `viewer`, `pending`, `onVote`, `onClaim` |
+| `TierCard` | One prize on the Prizes tab: place and amount, status, then the winner or a vote progress bar with each candidate's votes. It says until when the winner can claim, or that the claim window closed. Shows "Vote for a winner" to judges who haven't voted (while judging is open) and "Claim X SOL" to the winner while the claim window is open. A claimed prize links to its claim transaction once `useClaimSignatures` finds it. | `escrow`, `tierIndex`, `viewer`, `pending`, `claimSignature?`, `onVote`, `onClaim` |
 | `VoteDialog` | Lets a judge vote on one prize. Candidates come from `getVoteCandidates`: every entry by its project name, plus wallets that already have votes. There's also an address field for any other wallet. It says votes can't be changed. | `open`, `prizeLabel`, `threshold`, `candidates`, `submitting`, `onOpenChange`, `onSubmit(candidate)` |
 | `RefundDialog` | Confirms a refund: the amount, which prizes go back, and whether this closes the bounty or leaves prizes locked for winners who can still claim | `open`, `amountText`, `details`, `submitting`, `onOpenChange`, `onConfirm` |
 | `BountyDetail` | The whole `/bounty/[address]` page:<br>• loading, error, not-found and "Bounty closed" states<br>• `BountyHeader` and `BountyNotices`<br>• `BountyTabs` next to `BountyDetailsPanel`<br>• the vote and refund dialogs<br><br>It owns the shared handlers (`castVote`, `handleClaim`, `handleRefund`) and refreshes the bounty and its entries together after each transaction. | `address` |
 | `BountyTabs` | **Prizes**, **Submissions (N)**, and **Judging** (only for the bounty's judges, with a connected wallet) | `escrow`, `viewer`, `isJudge`, `prizeList`, `entries`, `pending`, `onVote`, `onSubmitEntry`, `onCloseEntry` |
 | `BountyHeader` | Back link, status and role badges, title, and "x of y prizes decided · next date" | `escrow`, `status`, `roles` |
 | `BountyNotices` | "Connect your wallet" card when logged out. For the organizer: a refund card with the reason and a **Refund X SOL** button when something can be refunded now, and a note saying until when winners can still claim. | `showConnect`, `refundText`, `refundReason`, `upcomingRefund`, `onConnect`, `onRefund` |
-| `PrizeList` | The stack of `TierCard`s | `escrow`, `viewer`, `pending`, `onVote`, `onClaim` |
-| `BountyDetailsPanel` | Side panel: prize pool and amount still locked, **Entries close**, **Judging ends** and **Claim window** (days and end date), judges with "N of M votes to win", organizer, escrow account, and the organizer's details link ("Read the full brief") | `escrow`, `viewer` |
+| `PrizeList` | The stack of `TierCard`s | `escrow`, `viewer`, `pending`, `claimSignatures`, `onVote`, `onClaim` |
+| `BountyDetailsPanel` | Side panel: prize pool and amount still locked, **Entries close**, **Judging ends** and **Claim window** (days and end date), judges with "N of M votes to win" (with their names from the details file, when it has them), organizer, escrow account, and the organizer's details link ("Read the full brief") | `escrow`, `viewer`, `judgeNames?` (defaults to the details file's names) |
+| `BountyMetadata` | The organizer's optional details file (`openbounty.metadata.v1`, see `utils/metadata.ts`), between the notices and the tabs: hackathon, longer name, description (plain text, line breaks kept), prize names and extra links (https only, with their host shown). A short warning when the file's judges or prize count differ from the chain; the page always shows the chain's data. Renders nothing for a plain web-page link; a small skeleton while loading and a "Try again" card if the file fails to load (5 s and 256 KB limits). | `escrow` |
 | `BountyDetailSkeleton` | Loading placeholder for the detail page | none |
 | `RoleBadges` | "You organize", "You judge", "You won". Renders nothing when you have no role. | `roles` (from `getViewerRoles`) |
 
@@ -123,10 +124,12 @@ The "Judging" tab, for the bounty's judges only. See [../features/judging.md](..
 
 | Component | What it shows | Props |
 |---|---|---|
-| `MyBounties` | The whole `/me` page:<br>• a connect prompt when logged out, plus loading and error states<br>• stats: organizing, judging, SOL ready to claim<br>• to-do sections: "Needs your vote", "Ready to claim" (with the claim-by date), "Refund available", or "Nothing needs you right now"<br>• "Organizing" and "Judging" grids | none |
+| `MyBounties` | The whole `/me` page:<br>• a connect prompt when logged out, plus loading and error states<br>• stats: organizing, judging, SOL ready to claim<br>• to-do sections: "Needs your vote", "Ready to claim" (with the claim-by date), "Refund available", or "Nothing needs you right now"<br>• "Organizing" and "Judging" grids<br>• "Your entries" (`MyEntries`) | none |
 | `MyBountiesSkeleton` | Loading placeholder: three stat cards and a row of bounty cards | none |
 | `TaskRow` | One to-do: bounty title, prize and amount, and a button that opens the bounty page (where the action happens) | `href`, `title`, `detail`, `actionLabel` |
 | `TaskSection` | Heading with a count and a list of `TaskRow`s. Renders nothing when empty. | `title`, `count`, `children` |
+| `MyEntries` | "Your entries": every entry you've submitted, newest first, including entries on bounties that have since closed. Owns the close-entry toast. | `viewer`, `state` (from `useMyEntries`) |
+| `EntryRow` | One entry: name, its bounty (a link, or "Bounty closed"), status and "Won 1st prize" badges, and "Close entry, get X SOL back" once judging has ended (otherwise when that becomes possible) | `entry`, `viewer`, `rentText`, `closing`, `onClose` |
 | `BountyGridSection` | Heading with a count and a grid of `BountyCard`s, or a short note (and optional action) when empty | `title`, `escrows`, `viewer`, `emptyText`, `emptyAction?` |
 
 ## create/
@@ -148,6 +151,9 @@ The validation rules and the transaction live in `hooks/useCreateBounty.ts`.
 | `PrizeTiersField` | Up to 4 SOL amounts labelled "1st prize", "2nd prize", ..., plus the live total to lock. Amounts are kept as text so a half-typed "0." works. | `amounts`, `error?`, `onChange` |
 | `TimelineField` | **Entries close** and **Judging ends** (date and time), and **Claim window (days)**, 1 to 90, default 14. Once all three are valid it shows "Winners can claim until ...". | `submissionsDeadline`, `deadline`, `claimWindowDays`, `errors`, `showSummary`, `onSubmissionsDeadlineChange`, `onDeadlineChange`, `onClaimWindowDaysChange` |
 | `CreateSuccess` | Confirmation, an explorer link, and "View bounty" / "Create another" | `signature`, `address`, `onCreateAnother` |
+| `MetadataBuilder` | "Bounty details file (optional)", collapsed, under **Details link**: longer name, description, hackathon name and website, `MetadataNamesField`, `MetadataLinksField`, and **Download JSON**, which saves `openbounty-metadata.json` (v1) with the form's current judges and prize count. Nothing is uploaded; the organizer hosts the file and pastes its link. Owns its own state. | `formValues` (`judges`, `tierAmounts`) |
+| `MetadataNamesField` | A display name for each valid judge address and a label for each prize in the form | `judges`, `judgeNames`, `prizeCount`, `prizeLabels`, `onJudgeNamesChange`, `onPrizeLabelsChange` |
+| `MetadataLinksField` | Up to 5 extra links (label and https, ipfs:// or ar:// URL), add and remove | `links`, `errors?`, `onChange` |
 
 Buttons inside the form that don't submit need `type="button"`; a plain `<button>` inside a `<form>` submits it.
 

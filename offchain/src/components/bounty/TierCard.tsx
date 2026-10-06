@@ -4,7 +4,7 @@
 // and the action for your role (judges vote, the winner claims within the claim window).
 
 import type { Address as SolanaAddress } from "@solana/kit";
-import { Loader2, Vote } from "lucide-react";
+import { ExternalLink, Loader2, Vote } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -15,17 +15,19 @@ import type { EscrowAccount } from "@/types/escrow";
 import { formatDate, formatSol, placeLabel, truncateAddress } from "@/utils/format";
 import { getCandidateTallies, getTierProgress, isClaimWindowOpen, isVotingOpen } from "@/utils/status";
 import type { PendingAction } from "@/hooks/useBountyActions";
+import { explorerUrl } from "@/constants/program";
 
 interface Props {
   escrow: EscrowAccount;
   tierIndex: number;
   viewer: SolanaAddress | null;
   pending: PendingAction | null;
+  claimSignature?: string;   // the claim transaction, once found in the bounty's history
   onVote: (tierIndex: number) => void;
   onClaim: (tierIndex: number) => void;
 }
 
-export default function TierCard({ escrow, tierIndex, viewer, pending, onVote, onClaim }: Props) {
+export default function TierCard({ escrow, tierIndex, viewer, pending, claimSignature, onVote, onClaim }: Props) {
   const tier = escrow.tiers[tierIndex];
   const progress = getTierProgress(escrow, tier);
   const tallies = getCandidateTallies(tier);
@@ -57,6 +59,17 @@ export default function TierCard({ escrow, tierIndex, viewer, pending, onVote, o
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <span className="text-muted-foreground">Winner</span>
           <Address address={tier.winner} isYou={isMyPrize} />
+          {claimSignature && (
+            <a
+              href={explorerUrl(claimSignature)}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1 text-accent-foreground underline-offset-4 hover:underline"
+            >
+              · Claim transaction <ExternalLink className="size-3.5" aria-hidden />
+              <span className="sr-only">(opens in a new tab)</span>
+            </a>
+          )}
         </div>
       )}
 

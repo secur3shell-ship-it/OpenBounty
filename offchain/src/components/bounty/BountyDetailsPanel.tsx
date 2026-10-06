@@ -1,5 +1,7 @@
+"use client";
+
 // Side panel on the bounty detail page: prize pool, the three dates (entries close,
-// judging ends, claim window), judges, organizer and links.
+// judging ends, claim window), judges (with names from the details file), organizer and links.
 
 import type { Address as SolanaAddress } from "@solana/kit";
 import { ExternalLink } from "lucide-react";
@@ -17,15 +19,21 @@ import {
   unsettledTotal,
 } from "@/utils/format";
 import { safeDetailsUrl } from "@/utils/address";
+import { judgeNameMap } from "@/utils/metadata";
+import { useBountyMetadata } from "@/hooks/useBountyMetadata";
 
 const LABEL = "text-xs font-semibold uppercase tracking-wider text-muted-foreground";
 
 interface Props {
   escrow: EscrowAccount;
   viewer: SolanaAddress | null;
+  judgeNames?: Record<string, string>;  // judge address -> name; defaults to the details file's names
 }
 
-export default function BountyDetailsPanel({ escrow, viewer }: Props) {
+export default function BountyDetailsPanel({ escrow, viewer, judgeNames }: Props) {
+  // Same request as BountyMetadata's (shared), so this adds no extra fetch
+  const { metadata } = useBountyMetadata(escrow.metadataUri);
+  const names = judgeNames ?? judgeNameMap(metadata, escrow.judges);
   const detailsUrl = safeDetailsUrl(escrow.metadataUri);
   const windowDays = claimWindowDays(escrow.deadline, escrow.claimDeadline);
 
@@ -66,7 +74,10 @@ export default function BountyDetailsPanel({ escrow, viewer }: Props) {
           Judges · {escrow.threshold} of {escrow.judges.length} votes to win
         </span>
         {escrow.judges.map((judge) => (
-          <Address key={judge} address={judge} isYou={judge === viewer} />
+          <div key={judge} className="flex flex-wrap items-center gap-x-2">
+            {names[judge] && <span className="min-w-0 break-words text-sm">{names[judge]}</span>}
+            <Address address={judge} isYou={judge === viewer} />
+          </div>
         ))}
       </div>
 

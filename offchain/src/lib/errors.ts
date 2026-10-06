@@ -45,6 +45,10 @@ export const PROGRAM_ERROR_MESSAGES: Record<number, string> = {
   [E.OPENBOUNTY_V2_ERROR__ENTRY_LOCKED]: 'Entries can be closed only after the deadline.',
 };
 
+const OUR_FIRST_ERROR_CODE = 6000;
+const SYSTEM_INSUFFICIENT_FUNDS = 1;
+const ANCHOR_ACCOUNT_NOT_INITIALIZED = 3012;
+
 /** An error whose message is already written for the user (e.g. a failed form check). */
 export class UserFacingError extends Error {}
 
@@ -85,7 +89,13 @@ function messages(err: unknown): string {
 export function describeError(err: unknown): string {
   if (err instanceof UserFacingError) return err.message;
   const code = programErrorCode(err);
-  if (code !== null) return PROGRAM_ERROR_MESSAGES[code] ?? `The program rejected this (error ${code}).`;
+  // Our program's errors start at 6000. Lower custom codes come from another program
+  // (or Anchor itself): the System Program's 1 means the wallet can't cover a transfer.
+  if (code !== null && code >= OUR_FIRST_ERROR_CODE) {
+    return PROGRAM_ERROR_MESSAGES[code] ?? `The program rejected this (error ${code}).`;
+  }
+  if (code === SYSTEM_INSUFFICIENT_FUNDS) return "Your wallet doesn't have enough SOL for this, including the fees and account rent.";
+  if (code === ANCHOR_ACCOUNT_NOT_INITIALIZED) return 'This bounty has closed. Refresh the page.';
   const text = messages(err);
   for (const [piece, message] of OTHER_ERRORS) {
     if (text.toLowerCase().includes(piece.toLowerCase())) return message;

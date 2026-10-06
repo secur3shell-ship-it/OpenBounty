@@ -13,11 +13,13 @@ import StatCard from "@/components/common/StatCard";
 import TokenAmount from "@/components/common/TokenAmount";
 import { useWalletModal } from "@/components/wallet/WalletModal";
 import BountyGridSection from "./BountyGridSection";
+import MyEntries from "./MyEntries";
 import MyBountiesSkeleton from "./MyBountiesSkeleton";
 import TaskRow from "./TaskRow";
 import TaskSection from "./TaskSection";
 import { useAllEscrows } from "@/hooks/useAllEscrows";
 import { useHydrated } from "@/hooks/useHydrated";
+import { useMyEntries } from "@/hooks/useMyEntries";
 import { useWallet } from "@/hooks/useWallet";
 import type { EscrowAccount } from "@/types/escrow";
 import { formatDeadline, formatSol, placeLabel } from "@/utils/format";
@@ -43,6 +45,7 @@ export default function MyBounties() {
   const { address: viewer, connecting } = useWallet();
   const { setVisible } = useWalletModal();
   const { escrows, loading, error, refetch } = useAllEscrows(viewer !== null);
+  const myEntries = useMyEntries(viewer, escrows, !loading);
 
   const header = (
     <PageHeader title="Your bounties" description="What needs you, and the bounties you run or judge." />
@@ -152,6 +155,7 @@ export default function MyBounties() {
         viewer={viewer}
         emptyText="You're not judging any bounties."
       />
+      <MyEntries viewer={viewer} state={myEntries} />
     </div>
   );
 }

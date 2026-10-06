@@ -26,6 +26,7 @@ const SUBMISSION_SIZE = 539n;
 // a Submission then has its escrow's createdAt.
 const FIRST_FIELD_OFFSET = 8n;
 const SUBMISSION_CREATED_AT_OFFSET = 40n;
+const SUBMISSION_SUBMITTER_OFFSET = 48n;
 
 const base58 = getBase58Decoder();
 const base64 = getBase64Encoder();
@@ -86,6 +87,24 @@ export async function listSubmissions(escrow: Address, escrowCreatedAt: bigint):
   return rows
     .map((row) => ({ address: row.pubkey, data: decoder.decode(base64.encode(row.account.data[0])) }))
     .sort((a, b) => Number(a.data.submittedAt - b.data.submittedAt));
+}
+
+/** Every entry one wallet has made, on any bounty (including closed ones), newest first. */
+export async function listSubmissionsBySubmitter(submitter: Address): Promise<SubmissionRow[]> {
+  const rows = await client.rpc
+    .getProgramAccounts(OPENBOUNTY_V2_PROGRAM_ADDRESS, {
+      encoding: 'base64',
+      filters: [
+        { dataSize: SUBMISSION_SIZE },
+        memcmp(0n, base58.decode(SUBMISSION_DISCRIMINATOR)),
+        memcmp(SUBMISSION_SUBMITTER_OFFSET, submitter),
+      ],
+    })
+    .send();
+  const decoder = getSubmissionDecoder();
+  return rows
+    .map((row) => ({ address: row.pubkey, data: decoder.decode(base64.encode(row.account.data[0])) }))
+    .sort((a, b) => Number(b.data.submittedAt - a.data.submittedAt));
 }
 
 /** The lowest nonce (0-255) this organizer hasn't used yet, or null if all 256 are taken. */

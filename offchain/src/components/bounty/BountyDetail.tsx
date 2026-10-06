@@ -15,6 +15,7 @@ import { useWalletModal } from "@/components/wallet/WalletModal";
 import BountyDetailSkeleton from "./BountyDetailSkeleton";
 import BountyDetailsPanel from "./BountyDetailsPanel";
 import BountyHeader from "./BountyHeader";
+import BountyMetadata from "./BountyMetadata";
 import BountyNotices from "./BountyNotices";
 import BountyTabs from "./BountyTabs";
 import PrizeList from "./PrizeList";
@@ -24,6 +25,7 @@ import { useWallet } from "@/hooks/useWallet";
 import { useEscrow } from "@/hooks/useEscrow";
 import { useBountyActions } from "@/hooks/useBountyActions";
 import { useSubmissions } from "@/hooks/useSubmissions";
+import { useClaimSignatures } from "@/hooks/useClaimSignatures";
 import type { EscrowAccount } from "@/types/escrow";
 import { formatDate, formatSol, placeLabel } from "@/utils/format";
 import { getBountyStatus, isClaimWindowOpen, pendingWinnerTiers, refundableTiers } from "@/utils/status";
@@ -50,6 +52,7 @@ export default function BountyDetail({ address }: Props) {
   const { escrow, loading, error, refetch } = useEscrow(address);
   const { vote, claim, refund, submitEntry, closeEntry, pending } = useBountyActions(escrow);
   const entries = useSubmissions(escrow);
+  const claimSignatures = useClaimSignatures(escrow);
   const [voteTier, setVoteTier] = useState<number | null>(null);
   const [refundOpen, setRefundOpen] = useState(false);
   const [closedMessage, setClosedMessage] = useState<string | null>(null);
@@ -160,7 +163,14 @@ export default function BountyDetail({ address }: Props) {
     : "These prizes go back to your wallet. Prizes that winners can still claim stay locked for them.";
 
   const prizeList = (
-    <PrizeList escrow={escrow} viewer={viewer} pending={pending} onVote={setVoteTier} onClaim={handleClaim} />
+    <PrizeList
+      escrow={escrow}
+      viewer={viewer}
+      pending={pending}
+      claimSignatures={claimSignatures}
+      onVote={setVoteTier}
+      onClaim={handleClaim}
+    />
   );
 
   return (
@@ -174,6 +184,7 @@ export default function BountyDetail({ address }: Props) {
         onConnect={() => setVisible(true)}
         onRefund={() => setRefundOpen(true)}
       />
+      <BountyMetadata escrow={escrow} />
 
       <div className="grid gap-6 lg:grid-cols-[1fr_20rem] lg:items-start">
         <BountyTabs
