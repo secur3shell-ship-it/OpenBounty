@@ -12,7 +12,17 @@ export const ESCROW_SEED: ReadonlyUint8Array = new Uint8Array([
   101, 115, 99, 114, 111, 119,
 ]);
 
+export const MAX_CLAIM_WINDOW: bigint = 7776000n;
+
+export const MAX_DEADLINE_AHEAD: bigint = 31536000n;
+
+export const MIN_CLAIM_WINDOW: bigint = 86400n;
+
 export const MIN_PRIZE_AMOUNT: bigint = 1000000n;
+
+export const SUBMISSION_SEED: ReadonlyUint8Array = new Uint8Array([
+  115, 117, 98, 109, 105, 115, 115, 105, 111, 110,
+]);
 
 export const VAULT_SEED: ReadonlyUint8Array = new Uint8Array([
   118, 97, 117, 108, 116,

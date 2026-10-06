@@ -70,11 +70,23 @@ export type Escrow = {
   vaultBump: number;
   /** Votes for the same candidate on a tier needed to finalize it. */
   voteThreshold: number;
+  /** Unix timestamp (seconds) when the escrow was created. */
+  createdAt: bigint;
   /**
-   * Unix timestamp (seconds) after which the organizer may reclaim
-   * eligible unclaimed prizes.
+   * Entries are accepted until this time (inclusive). Never after
+   * `deadline`.
+   */
+  submissionsDeadline: bigint;
+  /**
+   * Judges vote until this time (inclusive). After it, tiers that never got
+   * a winner can be refunded.
    */
   deadline: bigint;
+  /**
+   * Winners claim until this time (inclusive): `deadline` plus the
+   * organizer's claim window. After it, unclaimed prizes can be refunded.
+   */
+  claimDeadline: bigint;
   title: string;
   metadataUri: string;
   judges: Array<Address>;
@@ -89,11 +101,23 @@ export type EscrowArgs = {
   vaultBump: number;
   /** Votes for the same candidate on a tier needed to finalize it. */
   voteThreshold: number;
+  /** Unix timestamp (seconds) when the escrow was created. */
+  createdAt: number | bigint;
   /**
-   * Unix timestamp (seconds) after which the organizer may reclaim
-   * eligible unclaimed prizes.
+   * Entries are accepted until this time (inclusive). Never after
+   * `deadline`.
+   */
+  submissionsDeadline: number | bigint;
+  /**
+   * Judges vote until this time (inclusive). After it, tiers that never got
+   * a winner can be refunded.
    */
   deadline: number | bigint;
+  /**
+   * Winners claim until this time (inclusive): `deadline` plus the
+   * organizer's claim window. After it, unclaimed prizes can be refunded.
+   */
+  claimDeadline: number | bigint;
   title: string;
   metadataUri: string;
   judges: Array<Address>;
@@ -110,7 +134,10 @@ export function getEscrowEncoder(): Encoder<EscrowArgs> {
       ["bump", getU8Encoder()],
       ["vaultBump", getU8Encoder()],
       ["voteThreshold", getU8Encoder()],
+      ["createdAt", getI64Encoder()],
+      ["submissionsDeadline", getI64Encoder()],
       ["deadline", getI64Encoder()],
+      ["claimDeadline", getI64Encoder()],
       ["title", addEncoderSizePrefix(getUtf8Encoder(), getU32Encoder())],
       ["metadataUri", addEncoderSizePrefix(getUtf8Encoder(), getU32Encoder())],
       ["judges", getArrayEncoder(getAddressEncoder())],
@@ -129,7 +156,10 @@ export function getEscrowDecoder(): Decoder<Escrow> {
     ["bump", getU8Decoder()],
     ["vaultBump", getU8Decoder()],
     ["voteThreshold", getU8Decoder()],
+    ["createdAt", getI64Decoder()],
+    ["submissionsDeadline", getI64Decoder()],
     ["deadline", getI64Decoder()],
+    ["claimDeadline", getI64Decoder()],
     ["title", addDecoderSizePrefix(getUtf8Decoder(), getU32Decoder())],
     ["metadataUri", addDecoderSizePrefix(getUtf8Decoder(), getU32Decoder())],
     ["judges", getArrayDecoder(getAddressDecoder())],

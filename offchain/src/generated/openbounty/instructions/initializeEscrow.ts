@@ -107,8 +107,12 @@ export type InitializeEscrowInstructionData = {
    * sum in this same instruction.
    */
   prizeAmounts: Array<bigint>;
-  /** Unix timestamp (seconds). */
+  /** Unix timestamp (seconds): entries close. At most `deadline`. */
+  submissionsDeadline: bigint;
+  /** Unix timestamp (seconds): voting closes. */
   deadline: bigint;
+  /** Seconds after `deadline` during which winners can still claim. */
+  claimWindow: bigint;
 };
 
 export type InitializeEscrowInstructionDataArgs = {
@@ -122,8 +126,12 @@ export type InitializeEscrowInstructionDataArgs = {
    * sum in this same instruction.
    */
   prizeAmounts: Array<number | bigint>;
-  /** Unix timestamp (seconds). */
+  /** Unix timestamp (seconds): entries close. At most `deadline`. */
+  submissionsDeadline: number | bigint;
+  /** Unix timestamp (seconds): voting closes. */
   deadline: number | bigint;
+  /** Seconds after `deadline` during which winners can still claim. */
+  claimWindow: number | bigint;
 };
 
 export function getInitializeEscrowInstructionDataEncoder(): Encoder<InitializeEscrowInstructionDataArgs> {
@@ -136,7 +144,9 @@ export function getInitializeEscrowInstructionDataEncoder(): Encoder<InitializeE
       ["judges", getArrayEncoder(getAddressEncoder())],
       ["voteThreshold", getU8Encoder()],
       ["prizeAmounts", getArrayEncoder(getU64Encoder())],
+      ["submissionsDeadline", getI64Encoder()],
       ["deadline", getI64Encoder()],
+      ["claimWindow", getI64Encoder()],
     ]),
     (value) => ({ ...value, discriminator: INITIALIZE_ESCROW_DISCRIMINATOR }),
   );
@@ -151,7 +161,9 @@ export function getInitializeEscrowInstructionDataDecoder(): Decoder<InitializeE
     ["judges", getArrayDecoder(getAddressDecoder())],
     ["voteThreshold", getU8Decoder()],
     ["prizeAmounts", getArrayDecoder(getU64Decoder())],
+    ["submissionsDeadline", getI64Decoder()],
     ["deadline", getI64Decoder()],
+    ["claimWindow", getI64Decoder()],
   ]);
 }
 
@@ -184,7 +196,9 @@ export type InitializeEscrowInput<
   judges: InitializeEscrowInstructionDataArgs["judges"];
   voteThreshold: InitializeEscrowInstructionDataArgs["voteThreshold"];
   prizeAmounts: InitializeEscrowInstructionDataArgs["prizeAmounts"];
+  submissionsDeadline: InitializeEscrowInstructionDataArgs["submissionsDeadline"];
   deadline: InitializeEscrowInstructionDataArgs["deadline"];
+  claimWindow: InitializeEscrowInstructionDataArgs["claimWindow"];
 };
 
 export function getInitializeEscrowInstruction<

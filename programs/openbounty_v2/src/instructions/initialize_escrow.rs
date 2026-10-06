@@ -1,6 +1,14 @@
-use anchor_lang::prelude::*;
+use anchor_lang::{
+    prelude::*,
+    system_program::{transfer, Transfer},
+};
 
-use crate::{constants::*, error::OpenBountyError, state::Escrow};
+use crate::{
+    constants::*,
+    error::OpenBountyError,
+    events::EscrowInitialized,
+    state::{Escrow, PrizeTier},
+};
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug)]
 pub struct InitializeEscrowParams {
@@ -12,8 +20,12 @@ pub struct InitializeEscrowParams {
     /// One entry per prize tier, in lamports. The vault is funded with their
     /// sum in this same instruction.
     pub prize_amounts: Vec<u64>,
-    /// Unix timestamp (seconds).
+    /// Unix timestamp (seconds): entries close. At most `deadline`.
+    pub submissions_deadline: i64,
+    /// Unix timestamp (seconds): voting closes.
     pub deadline: i64,
+    /// Seconds after `deadline` during which winners can still claim.
+    pub claim_window: i64,
 }
 
 #[derive(Accounts)]
@@ -44,27 +56,131 @@ pub struct InitializeEscrow<'info> {
 }
 
 pub fn handle_initialize_escrow(
-    _ctx: Context<InitializeEscrow>,
-    _params: InitializeEscrowParams,
+    ctx: Context<InitializeEscrow>,
+    params: InitializeEscrowParams,
 ) -> Result<()> {
-    // TODO(initialize_escrow): implement. Initialization and funding are one
-    // atomic step; there is no separate funding instruction.
-    //  - Validate params against the protocol limits in `constants`: title
-    //    and URI byte lengths, 1..=MAX_JUDGES unique judges excluding the
-    //    organizer, 1 <= vote_threshold <= judges.len(), 1..=MAX_PRIZE_TIERS
-    //    amounts with a checked sum, deadline > Clock::unix_timestamp.
-    //  - Each amount must be >= max(MIN_PRIZE_AMOUNT,
-    //    Rent::get()?.minimum_balance(0)) (InvalidPrizeAmount), so paying a
-    //    brand-new wallet can't fail on rent even if rent rises.
-    //  - Write escrow state, including both bumps.
-    //  - Transfer the full prize pool from organizer to vault (system program
-    //    CPI) and check that the vault balance grew by exactly that amount.
-    //  - Vault rent: a system account can't be left holding 0 < lamports <
-    //    rent-exempt minimum, so a partial payout could fail. Decide how
-    //    the vault stays rent-exempt until final cleanup (e.g. the organizer
-    //    also deposits the reserve and gets it back at cleanup).
-    //  - Tolerate lamports sent to the vault address before initialization,
-    //    so nobody can block a nonce by pre-funding it. Pay out by tier
-    //    amounts, not by the raw vault balance.
-    err!(OpenBountyError::NotImplemented)
+    let organizer = ctx.accounts.organizer.key();
+    let now = Clock::get()?.unix_timestamp;
+
+    // --- Validate the configuration -----------------------------------------
+    require!(
+        !params.title.is_empty() && params.title.len() <= MAX_TITLE_LENGTH,
+        OpenBountyError::InvalidTitle
+    );
+    require!(
+        params.metadata_uri.len() <= MAX_METADATA_URI_LENGTH,
+        OpenBountyError::InvalidMetadataUri
+    );
+
+    let judge_count = params.judges.len();
+    require!(
+        (1..=MAX_JUDGES).contains(&judge_count),
+        OpenBountyError::InvalidJudgeCount
+    );
+    for (i, judge) in params.judges.iter().enumerate() {
+        require!(
+            !params.judges[..i].contains(judge),
+            OpenBountyError::DuplicateJudge
+        );
+        require!(*judge != organizer, OpenBountyError::OrganizerCannotBeJudge);
+    }
+
+    // A strict majority (Q6): two disjoint groups can never both reach it.
+    let threshold = params.vote_threshold as usize;
+    require!(
+        threshold <= judge_count && threshold * 2 > judge_count,
+        OpenBountyError::InvalidVoteThreshold
+    );
+
+    require!(
+        (1..=MAX_PRIZE_TIERS).contains(&params.prize_amounts.len()),
+        OpenBountyError::InvalidPrizeTierCount
+    );
+    let min_prize = MIN_PRIZE_AMOUNT.max(Rent::get()?.minimum_balance(0));
+    let mut prize_pool: u64 = 0;
+    for amount in &params.prize_amounts {
+        require!(*amount >= min_prize, OpenBountyError::InvalidPrizeAmount);
+        prize_pool = prize_pool
+            .checked_add(*amount)
+            .ok_or(OpenBountyError::PrizePoolOverflow)?;
+    }
+
+    // Q14: now < deadline <= now + 365 days.
+    let latest_deadline = now
+        .checked_add(MAX_DEADLINE_AHEAD)
+        .ok_or(OpenBountyError::ArithmeticOverflow)?;
+    require!(
+        params.deadline > now && params.deadline <= latest_deadline,
+        OpenBountyError::InvalidDeadline
+    );
+    require!(
+        params.submissions_deadline > now && params.submissions_deadline <= params.deadline,
+        OpenBountyError::InvalidSubmissionsDeadline
+    );
+    require!(
+        (MIN_CLAIM_WINDOW..=MAX_CLAIM_WINDOW).contains(&params.claim_window),
+        OpenBountyError::InvalidClaimWindow
+    );
+    let claim_deadline = params
+        .deadline
+        .checked_add(params.claim_window)
+        .ok_or(OpenBountyError::ArithmeticOverflow)?;
+
+    // --- Save the escrow -----------------------------------------------------
+    let escrow = &mut ctx.accounts.escrow;
+    escrow.organizer = organizer;
+    escrow.nonce = params.nonce;
+    escrow.bump = ctx.bumps.escrow;
+    escrow.vault_bump = ctx.bumps.vault;
+    escrow.vote_threshold = params.vote_threshold;
+    escrow.created_at = now;
+    escrow.submissions_deadline = params.submissions_deadline;
+    escrow.deadline = params.deadline;
+    escrow.claim_deadline = claim_deadline;
+    escrow.title = params.title;
+    escrow.metadata_uri = params.metadata_uri;
+    escrow.judges = params.judges;
+    escrow.prize_tiers = params
+        .prize_amounts
+        .iter()
+        .map(|&amount| PrizeTier {
+            amount,
+            winner: None,
+            claimed: false,
+            refunded: false,
+            votes: Vec::new(),
+        })
+        .collect();
+
+    // --- Fund the vault with the whole prize pool, atomically ---------------
+    // Lamports someone sent to the vault address earlier are tolerated (so a
+    // nonce can't be blocked by pre-funding it): payouts use tier amounts,
+    // and the remainder goes back to the organizer when the escrow closes.
+    let vault_before = ctx.accounts.vault.lamports();
+    transfer(
+        CpiContext::new(
+            ctx.accounts.system_program.key(),
+            Transfer {
+                from: ctx.accounts.organizer.to_account_info(),
+                to: ctx.accounts.vault.to_account_info(),
+            },
+        ),
+        prize_pool,
+    )?;
+    let vault_after = ctx.accounts.vault.lamports();
+    require!(
+        vault_after.checked_sub(vault_before) == Some(prize_pool),
+        OpenBountyError::IncorrectFunding
+    );
+
+    emit!(EscrowInitialized {
+        escrow: ctx.accounts.escrow.key(),
+        organizer,
+        nonce: params.nonce,
+        prize_pool,
+        submissions_deadline: params.submissions_deadline,
+        deadline: params.deadline,
+        claim_deadline,
+    });
+    Ok(())
 }

@@ -1,10 +1,13 @@
-import { BountyList } from "@/components/BountyList";
+// Home page: explore every bounty, then the latest news from around Solana.
 
-export default function Home() {
+import ExploreBounties from "@/components/explore/ExploreBounties";
+import NewsFeed from "@/components/news/NewsFeed";
+
+export default function HomePage() {
   return (
-    <div className="flex flex-col gap-4">
-      <h1 className="text-2xl font-bold">Bounties</h1>
-      <BountyList />
+    <div className="flex flex-col gap-12">
+      <ExploreBounties />
+      <NewsFeed />
     </div>
   );
 }

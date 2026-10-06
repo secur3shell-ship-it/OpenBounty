@@ -10,7 +10,8 @@
     "test": "bash scripts/test-local.sh",
     "test:legacy": "ANCHOR_TEST_VALIDATOR=legacy anchor test",
     "deploy:devnet": "bash scripts/deploy-devnet.sh",
-    "typecheck": "tsc --noEmit -p ./tsconfig.json"
+    "typecheck": "tsc --noEmit -p ./tsconfig.json",
+    "seed:devnet": "ts-node -P ./tsconfig.json scripts/seed-devnet.ts"
   },
   "dependencies": {
     "@anchor-lang/core": "1.2.0"

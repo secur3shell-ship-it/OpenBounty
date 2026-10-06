@@ -7,6 +7,8 @@
  */
 
 export * from "./claimPrize";
+export * from "./closeEntry";
 export * from "./initializeEscrow";
 export * from "./refundUnclaimed";
+export * from "./submitEntry";
 export * from "./voteWinner";

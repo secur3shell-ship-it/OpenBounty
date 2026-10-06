@@ -1,13 +1,12 @@
 import type { Address } from '@solana/kit';
 import type { Escrow } from '@/generated/openbounty';
 import { client } from '@/lib/client';
-import { findEscrowPda, findVaultPda } from '@/lib/pda';
+import { findEscrowPda, findSubmissionPda, findVaultPda } from '@/lib/pda';
 
-// Builders for the program's four instructions, signed by the connected
-// wallet. Each returns an instruction with .planTransaction() and
-// .sendTransaction(). Always check the inputs (src/domain/validation.ts), show
-// a review screen and simulate before calling .sendTransaction().
-// Until an instruction is implemented on-chain it fails with error 6025.
+// Builders for the program's instructions, signed by the connected wallet.
+// Each returns an instruction; send one with .sendTransaction(), or several in
+// one transaction with client.sendTransaction([...]). Check the inputs first
+// (src/domain/validation.ts); the program has the final say.
 
 export type CreateBountyInput = {
   nonce: number;
@@ -16,8 +15,12 @@ export type CreateBountyInput = {
   judges: Address[];
   voteThreshold: number;
   prizeAmounts: bigint[];
-  /** Unix seconds. */
+  /** Unix seconds: entries close. */
+  submissionsDeadline: bigint;
+  /** Unix seconds: voting closes. */
   deadline: bigint;
+  /** Seconds after the deadline during which winners can claim. */
+  claimWindow: bigint;
 };
 
 /** Organizer: create a bounty and lock the whole prize pool. */
@@ -33,8 +36,8 @@ export function buildVote(escrow: Address, tierIndex: number, candidate: Address
   return client.openbountyV2.instructions.voteWinner({ judge: client.identity, escrow, tierIndex, candidate });
 }
 
-/** Winner: claim a finalized prize. */
-export async function buildClaim(escrow: Address, data: Escrow, tierIndex: number) {
+/** Winner: claim a finalized prize, until the claim window closes. */
+export async function buildClaim(escrow: Address, data: Pick<Escrow, 'organizer' | 'nonce'>, tierIndex: number) {
   const [vault] = await findVaultPda(data.organizer, data.nonce);
   return client.openbountyV2.instructions.claimPrize({
     winner: client.identity,
@@ -45,8 +48,33 @@ export async function buildClaim(escrow: Address, data: Escrow, tierIndex: numbe
   });
 }
 
-/** Organizer: take back a prize that never got a winner, after the deadline. */
-export async function buildRefund(escrow: Address, data: Escrow, tierIndex: number) {
+/** Organizer: take back an undecided prize (after the deadline) or an unclaimed one (after the claim window). */
+export async function buildRefund(escrow: Address, data: Pick<Escrow, 'organizer' | 'nonce'>, tierIndex: number) {
   const [vault] = await findVaultPda(data.organizer, data.nonce);
   return client.openbountyV2.instructions.refundUnclaimed({ organizer: client.identity, escrow, vault, tierIndex });
+}
+
+/** Builder: enter a bounty before entries close. */
+export async function buildSubmitEntry(
+  escrow: Address,
+  escrowCreatedAt: bigint,
+  title: string,
+  url: string,
+  description: string,
+) {
+  const [submission] = await findSubmissionPda(escrow, escrowCreatedAt, client.identity.address);
+  return client.openbountyV2.instructions.submitEntry({
+    submitter: client.identity,
+    escrow,
+    submission,
+    title,
+    url,
+    description,
+  });
+}
+
+/** Builder: close an entry after the deadline and get its rent back. */
+export async function buildCloseEntry(escrow: Address, escrowCreatedAt: bigint) {
+  const [submission] = await findSubmissionPda(escrow, escrowCreatedAt, client.identity.address);
+  return client.openbountyV2.instructions.closeEntry({ submitter: client.identity, submission });
 }

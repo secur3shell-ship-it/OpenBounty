@@ -1,5 +1,5 @@
 import { isAddress, type Address } from '@solana/kit';
-import { MIN_PRIZE_AMOUNT, type Escrow } from '@/generated/openbounty';
+import { MAX_CLAIM_WINDOW, MIN_CLAIM_WINDOW, MIN_PRIZE_AMOUNT, type Escrow } from '@/generated/openbounty';
 import {
   DEADLINE_SAFETY_MARGIN_SECONDS,
   MAX_DEADLINE_AHEAD_SECONDS,
@@ -31,8 +31,12 @@ export type CreateInput = {
   judges: string[];
   voteThreshold: number;
   prizeAmounts: bigint[];
-  /** Unix seconds. */
+  /** Unix seconds: entries close. */
+  submissionsDeadline: bigint;
+  /** Unix seconds: voting closes. */
   deadline: bigint;
+  /** Seconds after the deadline during which winners can claim. */
+  claimWindow: bigint;
 };
 
 export type CreateContext = {
@@ -90,6 +94,18 @@ export function validateCreate(input: CreateInput, ctx: CreateContext): Problem[
     add('deadline', 'The deadline can be at most one year away.');
   }
 
+  // Entries close before (or when) voting closes.
+  if (input.submissionsDeadline <= ctx.now + DEADLINE_SAFETY_MARGIN_SECONDS) {
+    add('submissionsDeadline', 'Entries must close at least 10 minutes from now.');
+  } else if (input.submissionsDeadline > input.deadline) {
+    add('submissionsDeadline', 'Entries must close before (or when) judging ends.');
+  }
+
+  // Q3 revised: the organizer sets the claim window, 1 to 90 days.
+  if (input.claimWindow < MIN_CLAIM_WINDOW || input.claimWindow > MAX_CLAIM_WINDOW) {
+    add('claimWindow', `The claim window must be ${MIN_CLAIM_WINDOW / 86400n} to ${MAX_CLAIM_WINDOW / 86400n} days.`);
+  }
+
   return problems;
 }
 
@@ -121,8 +137,8 @@ export function voteProblem(escrow: Escrow, ctx: VoteContext): string | null {
   return null;
 }
 
-/** Why this wallet can't claim this prize, or null if it can. Winners can claim even after the deadline (Q3). */
-export function claimProblem(escrow: Escrow, wallet: Address, tierIndex: number): string | null {
+/** Why this wallet can't claim this prize, or null if it can. Winners claim until the claim window closes (Q3 revised). */
+export function claimProblem(escrow: Escrow, wallet: Address, tierIndex: number, now: bigint): string | null {
   const tier = escrow.prizeTiers[tierIndex];
   if (!tier) return "That prize doesn't exist.";
   const status = tierStatus(tier);
@@ -130,6 +146,7 @@ export function claimProblem(escrow: Escrow, wallet: Address, tierIndex: number)
   if (status === 'claimed') return 'This prize has already been claimed.';
   if (status === 'refunded') return 'This prize was refunded.';
   if (tierWinner(tier) !== wallet) return 'Only the winner of this prize can claim it.';
+  if (now > escrow.claimDeadline) return 'The claim window for this prize has closed.';
   return null;
 }
 
@@ -139,7 +156,9 @@ export function refundProblem(escrow: Escrow, wallet: Address, tierIndex: number
   if (now <= escrow.deadline) return 'Refunds open after the deadline.'; // Q9: strictly after
   const tier = escrow.prizeTiers[tierIndex];
   if (!tier) return "That prize doesn't exist.";
-  // Q3: only prizes that never got a winner can be refunded.
-  if (tierStatus(tier) !== 'open') return "This prize can't be refunded: it has a winner or is already settled.";
+  const status = tierStatus(tier);
+  if (status === 'claimed' || status === 'refunded') return 'This prize is already settled.';
+  // Q3 revised: a winner keeps the prize until the claim window closes.
+  if (status === 'finalized' && now <= escrow.claimDeadline) return 'The winner can still claim this prize.';
   return null;
 }

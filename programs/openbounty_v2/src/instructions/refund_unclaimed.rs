@@ -1,6 +1,12 @@
 use anchor_lang::prelude::*;
 
-use crate::{constants::*, error::OpenBountyError, state::Escrow};
+use crate::{
+    constants::*,
+    error::OpenBountyError,
+    events::TierRefunded,
+    instructions::vault::{close_if_settled, pay_from_vault},
+    state::Escrow,
+};
 
 #[derive(Accounts)]
 pub struct RefundUnclaimed<'info> {
@@ -25,18 +31,48 @@ pub struct RefundUnclaimed<'info> {
     pub system_program: Program<'info, System>,
 }
 
-pub fn handle_refund_unclaimed(_ctx: Context<RefundUnclaimed>, _tier_index: u8) -> Result<()> {
-    // TODO(refund_unclaimed): implement. There is no emergency or admin
-    // withdrawal; this is the organizer's only way to recover funds.
-    //  - Require Clock::unix_timestamp > deadline (DeadlineNotReached).
-    //  - Check tier_index (InvalidTier) and refund eligibility
-    //    (RefundNotEligible): never claimed and never refunded.
-    //  - Open protocol question: is a tier with a finalized but unclaimed
-    //    winner refundable after the deadline, or only tiers that never
-    //    reached the threshold?
-    //  - Mark the tier refunded, then transfer `amount` from the vault with the
-    //    vault PDA seeds.
-    //  - If every tier is now claimed or refunded, close the escrow and sweep
-    //    the vault to the organizer.
-    err!(OpenBountyError::NotImplemented)
+/// There is no emergency or admin withdrawal; this is the organizer's only
+/// way to recover funds. Refunding several tiers means one instruction per
+/// tier, which fit in a single transaction.
+pub fn handle_refund_unclaimed(ctx: Context<RefundUnclaimed>, tier_index: u8) -> Result<()> {
+    let escrow_key = ctx.accounts.escrow.key();
+    let now = Clock::get()?.unix_timestamp;
+
+    let escrow = &mut ctx.accounts.escrow;
+    let (deadline, claim_deadline) = (escrow.deadline, escrow.claim_deadline);
+    let tier = escrow
+        .prize_tiers
+        .get_mut(tier_index as usize)
+        .ok_or(OpenBountyError::InvalidTier)?;
+    require!(!tier.is_settled(), OpenBountyError::RefundNotEligible);
+
+    // Q9: never before the deadline. A tier with a winner stays theirs until
+    // the claim window closes (Q3 revised).
+    require!(now > deadline, OpenBountyError::DeadlineNotReached);
+    if tier.winner.is_some() {
+        require!(now > claim_deadline, OpenBountyError::ClaimWindowOpen);
+    }
+
+    tier.refunded = true;
+    let amount = tier.amount;
+
+    pay_from_vault(
+        &ctx.accounts.escrow,
+        &ctx.accounts.vault,
+        ctx.accounts.organizer.to_account_info(),
+        &ctx.accounts.system_program,
+        amount,
+    )?;
+    emit!(TierRefunded {
+        escrow: escrow_key,
+        tier_index,
+        amount,
+    });
+
+    close_if_settled(
+        &mut ctx.accounts.escrow,
+        &ctx.accounts.vault,
+        ctx.accounts.organizer.to_account_info(),
+        &ctx.accounts.system_program,
+    )
 }

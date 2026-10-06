@@ -23,9 +23,17 @@ pub struct Escrow {
     pub vault_bump: u8,
     /// Votes for the same candidate on a tier needed to finalize it.
     pub vote_threshold: u8,
-    /// Unix timestamp (seconds) after which the organizer may reclaim
-    /// eligible unclaimed prizes.
+    /// Unix timestamp (seconds) when the escrow was created.
+    pub created_at: i64,
+    /// Entries are accepted until this time (inclusive). Never after
+    /// `deadline`.
+    pub submissions_deadline: i64,
+    /// Judges vote until this time (inclusive). After it, tiers that never got
+    /// a winner can be refunded.
     pub deadline: i64,
+    /// Winners claim until this time (inclusive): `deadline` plus the
+    /// organizer's claim window. After it, unclaimed prizes can be refunded.
+    pub claim_deadline: i64,
     #[max_len(MAX_TITLE_LENGTH)]
     pub title: String,
     #[max_len(MAX_METADATA_URI_LENGTH)]
@@ -42,6 +50,11 @@ impl Escrow {
 
     pub fn is_judge(&self, key: &Pubkey) -> bool {
         self.judges.contains(key)
+    }
+
+    /// True once every tier is claimed or refunded; the escrow then closes.
+    pub fn is_settled(&self) -> bool {
+        self.prize_tiers.iter().all(PrizeTier::is_settled)
     }
 }
 
@@ -63,6 +76,12 @@ pub struct PrizeTier {
     pub votes: Vec<Vote>,
 }
 
+impl PrizeTier {
+    pub fn is_settled(&self) -> bool {
+        self.claimed || self.refunded
+    }
+}
+
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug, PartialEq, Eq, InitSpace)]
 pub struct Vote {
     pub judge: Pubkey,
@@ -81,7 +100,7 @@ mod tests {
         let tier = 8 + (1 + 32) + 1 + 1 + (4 + MAX_JUDGES * vote);
         let expected = 32 // organizer
             + 1 + 1 + 1 + 1 // nonce, bump, vault_bump, vote_threshold
-            + 8 // deadline
+            + 8 * 4 // created_at, submissions_deadline, deadline, claim_deadline
             + (4 + MAX_TITLE_LENGTH)
             + (4 + MAX_METADATA_URI_LENGTH)
             + (4 + MAX_JUDGES * 32)
@@ -102,7 +121,10 @@ mod tests {
             bump: u8::MAX,
             vault_bump: u8::MAX,
             vote_threshold: MAX_JUDGES as u8,
+            created_at: i64::MAX,
+            submissions_deadline: i64::MAX,
             deadline: i64::MAX,
+            claim_deadline: i64::MAX,
             title: "t".repeat(MAX_TITLE_LENGTH),
             metadata_uri: "u".repeat(MAX_METADATA_URI_LENGTH),
             judges: (0..MAX_JUDGES).map(|_| key()).collect(),

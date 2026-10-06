@@ -30,7 +30,10 @@ function escrow(overrides: Partial<Escrow> = {}): Escrow {
     bump: 255,
     vaultBump: 254,
     voteThreshold: 2,
+    createdAt: NOW - 60n,
+    submissionsDeadline: NOW + 1800n,
     deadline: NOW + 3600n,
+    claimDeadline: NOW + 3600n + 14n * 86400n,
     title: 'Hack',
     metadataUri: '',
     judges: [JUDGE_A, JUDGE_B, JUDGE_C],
@@ -78,7 +81,9 @@ describe('validateCreate', () => {
     judges: [JUDGE_A, JUDGE_B, JUDGE_C] as string[],
     voteThreshold: 2,
     prizeAmounts: [2_000_000_000n, 1_000_000n],
+    submissionsDeadline: NOW + 5n * 24n * 3600n,
     deadline: NOW + 7n * 24n * 3600n,
+    claimWindow: 14n * 24n * 3600n,
   };
   const fields = (input: typeof good) => validateCreate(input, ctx).map((p) => p.field);
 
@@ -105,6 +110,16 @@ describe('validateCreate', () => {
   it('keeps the deadline in the future and within a year (Q14)', () => {
     expect(fields({ ...good, deadline: NOW + 60n })).toContain('deadline');
     expect(fields({ ...good, deadline: NOW + 400n * 24n * 3600n })).toContain('deadline');
+  });
+  it('closes entries no later than the deadline', () => {
+    expect(fields({ ...good, submissionsDeadline: good.deadline })).not.toContain('submissionsDeadline');
+    expect(fields({ ...good, submissionsDeadline: good.deadline + 1n })).toContain('submissionsDeadline');
+    expect(fields({ ...good, submissionsDeadline: NOW + 60n })).toContain('submissionsDeadline');
+  });
+  it('keeps the claim window between 1 and 90 days (Q3 revised)', () => {
+    expect(fields({ ...good, claimWindow: 86400n - 1n })).toContain('claimWindow');
+    expect(fields({ ...good, claimWindow: 90n * 86400n + 1n })).toContain('claimWindow');
+    expect(fields({ ...good, claimWindow: 86400n })).not.toContain('claimWindow');
   });
 });
 
@@ -134,17 +149,21 @@ describe('vote, claim and refund checks', () => {
       expect(voteProblem(escrow(), voteCtx({ candidate: bad }))).not.toBeNull();
     }
   });
-  it('lets only the winner claim, even after the deadline (Q3)', () => {
-    const won = escrow({ deadline: NOW - 10n, prizeTiers: [tier({ winner: some(CANDIDATE) })] });
-    expect(claimProblem(won, CANDIDATE, 0)).toBeNull();
-    expect(claimProblem(won, JUDGE_A, 0)).not.toBeNull();
+  it('lets only the winner claim, after the deadline too, until the claim window closes (Q3 revised)', () => {
+    const won = escrow({ deadline: NOW - 10n, claimDeadline: NOW + 10n, prizeTiers: [tier({ winner: some(CANDIDATE) })] });
+    expect(claimProblem(won, CANDIDATE, 0, NOW)).toBeNull();
+    expect(claimProblem(won, JUDGE_A, 0, NOW)).not.toBeNull();
+    expect(claimProblem(won, CANDIDATE, 0, NOW + 11n)).toMatch(/closed/);
   });
-  it('refunds only undecided prizes, strictly after the deadline (Q3, Q9)', () => {
+  it('refunds undecided prizes after the deadline, unclaimed winners after the claim window (Q3 revised, Q9)', () => {
     const past = escrow({ deadline: NOW - 1n });
     expect(refundProblem(past, ORGANIZER, 0, NOW)).toBeNull();
     expect(refundProblem(escrow({ deadline: NOW }), ORGANIZER, 0, NOW)).not.toBeNull();
-    const decided = escrow({ deadline: NOW - 1n, prizeTiers: [tier({ winner: some(CANDIDATE) })] });
-    expect(refundProblem(decided, ORGANIZER, 0, NOW)).not.toBeNull();
+    const decided = escrow({ deadline: NOW - 1n, claimDeadline: NOW, prizeTiers: [tier({ winner: some(CANDIDATE) })] });
+    expect(refundProblem(decided, ORGANIZER, 0, NOW)).toMatch(/still claim/);
+    expect(refundProblem(decided, ORGANIZER, 0, NOW + 1n)).toBeNull();
+    const claimed = escrow({ deadline: NOW - 1n, prizeTiers: [tier({ winner: some(CANDIDATE), claimed: true })] });
+    expect(refundProblem(claimed, ORGANIZER, 0, NOW + 1n)).not.toBeNull();
   });
 });
 

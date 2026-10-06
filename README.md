@@ -5,20 +5,33 @@ Trustless, on-chain escrow for hackathon prize bounties on Solana.
 An organizer locks the full prize pool in a program-controlled vault when the
 bounty is created. Judges vote for winners on-chain, each signing their own
 transaction. A prize tier finalizes automatically when a candidate reaches the
-vote threshold, and the winner claims the prize with no one's approval. After
-the deadline, the organizer can reclaim only prize funds that are eligible for
-refund.
+vote threshold, and the winner claims the prize with no one's approval, within
+a claim window the organizer sets. Builders submit their entries on-chain.
+After the deadline, the organizer can reclaim only prize funds that are
+eligible for refund.
 
 This repository holds the on-chain program and, in [`offchain/`](offchain/README.md),
-the frontend. The frontend is a scaffolded Next.js app built against the
-committed IDL (see [Integration boundary](#integration-boundary-idl)); its
-features are being built on top of that scaffold.
+the frontend: a Next.js app built against the committed IDL (see
+[Integration boundary](#integration-boundary-idl)).
 
-> **Status: scaffold, deployed on devnet.** The account model, PDAs,
-> instruction interfaces, errors and IDL are in place and tested. The program
-> is live on devnet (deployed 2026-09-26, upgradeable by the OpenBounty
-> deployer), but the four instruction handlers still return `NotImplemented`.
-> See [Current limitations](#current-limitations).
+> **Status: v1 (SOL prizes), live on devnet since 2026-10-06.** All six
+> instructions are implemented and tested (51 integration tests), the program
+> is upgraded on devnet, and the full flow has been run there through the
+> frontend. See [Current limitations](#current-limitations).
+
+## Deployment
+
+| What | Value |
+| ---- | ----- |
+| Program ID (devnet) | [`HTvHgRG4uHnj1KQeynNXsKEvBE3oqsc9TxRaGTgqgEk4`](https://explorer.solana.com/address/HTvHgRG4uHnj1KQeynNXsKEvBE3oqsc9TxRaGTgqgEk4?cluster=devnet) |
+| ProgramData account | `FheYHSZ3qgeCyTVy2GkhYty3BqEKG4NG1Y8jusnCKaBH` |
+| Upgrade authority | `Ad5NzuNtFGG5GfWkSA4fkF3yViQiefv96BeESSMURwqk` (the OpenBounty deployer; moving to a multisig, see [Devnet](#devnet)) |
+| On-chain IDL (Program Metadata) | `C3R2fiQ3EHwZHUSCPwWcAXrsVDGF67WSjmDQVwJqerFq`, identical to [`idl/openbounty_v2.json`](idl/openbounty_v2.json) |
+| Mainnet | Not deployed |
+
+The same ID is set in `declare_id!` ([`lib.rs`](programs/openbounty_v2/src/lib.rs)) and in
+`Anchor.toml` (`[programs.localnet]` and `[programs.devnet]`). The frontend reads it from the
+generated client (`OPENBOUNTY_V2_PROGRAM_ADDRESS`).
 
 ## Names
 
@@ -46,8 +59,12 @@ component is trusted to enforce them.
   reaches `vote_threshold` votes.
 - **Winners claim without approval.** The finalized winner claims directly.
   No operator has to approve or release the payout.
-- **Refunds only after the deadline.** The organizer can reclaim only eligible,
-  unclaimed tiers, and only after the deadline.
+- **Winners have a claim window.** A finalized prize belongs to its winner
+  until `claim_deadline` (the deadline plus a window of 1–90 days the
+  organizer sets at creation). Winners can claim before the deadline too.
+- **Refunds only after the deadline.** After `deadline`, the organizer can
+  reclaim tiers that never got a winner. A winner's unclaimed tier becomes
+  refundable only after `claim_deadline`.
 - **No admin.** There is no superuser, emergency withdrawal or upgrade-time
   override in the protocol logic.
 - **No stored roles.** Roles come from escrow state at instruction time:
@@ -61,7 +78,13 @@ component is trusted to enforce them.
 | `initialize_escrow`  | organizer | Creates the escrow and funds the vault with the full prize pool in one step. |
 | `vote_winner`        | judge     | Records a judge's vote for a candidate on one tier and finalizes the tier at the threshold. |
 | `claim_prize`        | winner    | Pays a finalized tier's prize to its winner. Closes the escrow once every tier is settled. |
-| `refund_unclaimed`   | organizer | After the deadline, returns an eligible tier's amount to the organizer. Closes the escrow once every tier is settled. |
+| `refund_unclaimed`   | organizer | Returns one tier's amount to the organizer: a tier with no winner after `deadline`, or an unclaimed winner's tier after `claim_deadline`. Several fit in one transaction. Closes the escrow once every tier is settled. |
+| `submit_entry`       | builder   | Records a builder's entry (name, link, description) before `submissions_deadline`. Not the organizer or a judge; one per wallet. |
+| `close_entry`        | builder   | After `deadline`, closes the builder's entry and returns its rent. Works even after the escrow has closed. |
+
+Every state change emits an Anchor event: `EscrowInitialized`, `VoteCast`,
+`TierFinalized`, `PrizeClaimed`, `TierRefunded`, `EscrowClosed`,
+`EntrySubmitted`, `EntryClosed`.
 
 ## Accounts and PDAs
 
@@ -69,6 +92,7 @@ component is trusted to enforce them.
 | ------- | ---------------------------------- | -------------- | ----- |
 | Escrow  | `["escrow", organizer, nonce: u8]` | `openbounty_v2` | Bounty state (below) |
 | Vault   | `["vault", organizer, nonce: u8]`  | System program | Prize lamports only (no data). The program moves funds by signing with the vault's PDA seeds. |
+| Submission | `["submission", escrow, escrow.created_at: i64 LE, submitter]` | `openbounty_v2` | One builder's entry. `created_at` is in the seeds because a closed bounty's address can be reused by a new bounty with the same nonce; old entries must not block or show up in the new one. |
 
 The `nonce` lets one organizer run up to 256 escrows at the same time. Both
 bumps are stored in the escrow.
@@ -80,7 +104,10 @@ Escrow
 ├── bump             u8
 ├── vault_bump       u8
 ├── vote_threshold   u8
-├── deadline         i64           unix seconds
+├── created_at           i64       unix seconds
+├── submissions_deadline i64       entries close (≤ deadline)
+├── deadline             i64       voting closes
+├── claim_deadline       i64       deadline + claim window
 ├── title            String        ≤ MAX_TITLE_LENGTH bytes
 ├── metadata_uri     String        ≤ MAX_METADATA_URI_LENGTH bytes
 ├── judges           Vec<Pubkey>   ≤ MAX_JUDGES
@@ -94,7 +121,7 @@ Escrow
         └── candidate Pubkey
 ```
 
-The escrow is allocated once at its worst-case size, 1,846 bytes, and is never
+The escrow is allocated once at its worst-case size, 1,870 bytes, and is never
 resized. A compile-time assertion keeps it under the 10 KiB limit for `init`,
 and a unit test checks the size against the protocol limits.
 
@@ -110,6 +137,9 @@ All limits are defined in
 | `MAX_TITLE_LENGTH`        | 50    |
 | `MAX_METADATA_URI_LENGTH` | 100   |
 | `MIN_PRIZE_AMOUNT`        | 1,000,000 lamports (0.001 SOL) |
+| `MAX_DEADLINE_AHEAD`      | 365 days |
+| `MIN_CLAIM_WINDOW` / `MAX_CLAIM_WINDOW` | 1 day / 90 days (the frontend defaults to 14) |
+| Entry name / link / description | 50 / 100 / 280 bytes |
 
 Each prize tier must also be at least the rent-exempt minimum for a data-less
 account (650,240 lamports today). That way paying a brand-new wallet can never
@@ -125,14 +155,16 @@ in the IDL; the `usize` limits aren't (see
 │   ├── lib.rs                 # entry points only: dispatch to instructions/
 │   ├── constants.rs           # seeds and protocol limits
 │   ├── error.rs               # OpenBountyError
-│   ├── state/                 # Escrow, PrizeTier, Vote (+ sizing tests)
-│   └── instructions/          # one file per instruction: accounts + handler
+│   ├── events.rs              # Anchor events
+│   ├── state/                 # Escrow, PrizeTier, Vote, Submission (+ sizing tests)
+│   └── instructions/          # one file per instruction (+ vault.rs: payouts and closing)
 ├── tests/
 │   ├── openbounty_v2.test.ts  # integration tests (run by `yarn test`)
-│   └── helpers/               # shared test utilities (PDA derivation)
+│   └── helpers/               # PDA derivation, chain clock, Surfpool time travel
 ├── idl/openbounty_v2.json     # the IDL, refreshed by every build and committed (for the frontend)
 ├── offchain/                 # the frontend (Next.js + Solana Kit); see offchain/README.md
 ├── scripts/test-local.sh      # isolated local test run (see "Keys and wallets")
+├── scripts/seed-devnet.ts     # devnet end-to-end check + sample bounties (`yarn seed:devnet`)
 ├── Anchor.toml                # toolchain pins, program IDs, clusters, wallet, IDL copy, test guard
 ├── Cargo.toml                 # Rust workspace
 ├── rust-toolchain.toml        # host Rust toolchain (IDL build, cargo test)
@@ -218,7 +250,8 @@ Rules:
 
 ### Program ID
 
-The program ID is the public key of `target/deploy/openbounty_v2-keypair.json`.
+The program ID, `HTvHgRG4uHnj1KQeynNXsKEvBE3oqsc9TxRaGTgqgEk4`, is the public key of
+`target/deploy/openbounty_v2-keypair.json`.
 That keypair is the program's deploy key: it is gitignored and must never be
 committed. `anchor build` creates a new one if none exists, and warns when it
 doesn't match `declare_id!`.
@@ -259,7 +292,9 @@ deployer wallet. `yarn test:legacy` funds the deployer through
 e.g. `yarn test --skip-build`.
 
 The suites are every `tests/**/*.test.ts`. Put shared helpers in
-`tests/helpers/`.
+`tests/helpers/`. Deadline and claim-window tests move the network clock
+with Surfpool's `surfnet_timeTravel`; on `yarn test:legacy` (no time travel)
+they are skipped and reported as pending.
 
 ## Devnet
 
@@ -281,6 +316,10 @@ yarn deploy:devnet      # deploys, or upgrades in place; payer and upgrade autho
 - Without that file, the script falls back to the public endpoint.
 - It refuses to run against anything that isn't devnet.
 
+After an upgrade, `yarn seed:devnet` runs the whole flow on devnet (create,
+enter, vote, claim, close) and leaves sample bounties for the frontend. Its
+sample judge and builder keys live in `~/.config/openbounty/keys/devnet-*.json`.
+
 To use your own endpoint:
 
 ```bash
@@ -295,11 +334,11 @@ with `--no-idl`). To fund the deployer, run
 `solana -C ~/.config/openbounty/solana-cli.yml airdrop 1`, or use
 https://faucet.solana.com if the airdrop is rate-limited.
 
-Upgrade authority: on devnet the program stays upgradeable, with the deployer
-as its upgrade authority, so it can be iterated on. On mainnet it will be
-made immutable (`solana program set-upgrade-authority <PROGRAM_ID> --final`)
-after an audit and a verifiable build, so no key can change the rules once
-bounties hold real funds.
+Upgrade authority: today the deployer key alone can upgrade the program on
+devnet. The decided path (2026-10-06) removes that single point of trust:
+a Squads multisig with a time lock becomes the upgrade authority (devnet
+first), builds become verifiable (`solana-verify`), and after an audit the
+program is made immutable (`--final`). See `doc/plan_v2.md`.
 
 ## Integration boundary (IDL)
 
@@ -323,31 +362,18 @@ because clients match on the codes. The program keypair is never shared.
 
 ## Current limitations
 
-- **Handlers aren't implemented.** The account constraints for all four
-  instructions are final: signers, PDA seeds and bumps, and the escrow-to-
-  organizer checks. Handler-level checks (judge membership, winner identity,
-  deadline, tier state) are still TODOs. Each handler returns
-  `NotImplemented`. A failing call rolls back entirely, and a test checks
-  that.
-- **`NotImplemented` is temporary.** It is the last error variant, and new
-  errors are inserted just before it, so removing it later doesn't renumber
-  any real error.
-- **Protocol rules (decided 2026-09-26, implemented as each handler lands):**
-  - Votes are final, and voting closes at the deadline.
-  - The vote threshold must be a strict majority of the judges.
-  - Invalid candidates: the organizer, any judge, the system program address,
-    and the bounty's own escrow and vault. One candidate may win several
-    prizes.
-  - A finalized prize always belongs to its winner, who can claim it even
-    after the deadline. After the deadline (strictly), the organizer can
-    refund only prizes that never got a winner.
-  - The metadata URI is optional. The deadline must be in the future and at
-    most one year away.
-  - No vault rent reserve: every prize is at least the empty-account rent
-    minimum, and the last settlement sweeps the vault to zero.
-  - Each instruction emits Anchor events.
-- **Limits aren't in the IDL.** They are `usize`, as account sizing needs,
-  and `#[constant]` can't export `usize`. Clients should mirror
+- **SOL prizes only.** Multi-token prizes, claiming in another token and
+  cross-chain payouts are phase 2 (`doc/plan_v2.md`).
+- **Closed bounties disappear.** The program closes a bounty once every prize
+  is claimed or refunded, so the frontend (which reads accounts directly, with
+  no indexer) stops listing it. A read-only indexer is planned after v1.
+- **Address reuse edge case.** Entries are tied to a bounty by its
+  `created_at`. Recreating a bounty at the same address within the same
+  second as closing the old one would mix their entries; the frontend never
+  does this.
+- **Limits aren't all in the IDL.** The size limits are `usize`, as account
+  sizing needs, and `#[constant]` can't export `usize`. Clients mirror
   `constants.rs`.
-- **The frontend is a scaffold** (wallet, reads, helpers, rules), with its
-  features in progress. There is no backend or indexer, by design.
+- **Upgrade authority is still a single key** until the multisig move above.
+- **No backend for bounty state.** The only server is the planned read-only
+  markets/news feed (`offchain/docs/features/markets-feed.md`).

@@ -1,29 +1,52 @@
-import { getBase64Encoder, type Address, type Base58EncodedBytes } from '@solana/kit';
-import { getEscrowDecoder, OPENBOUNTY_V2_PROGRAM_ADDRESS, type Escrow } from '@/generated/openbounty';
+import {
+  getBase58Decoder,
+  getBase64Encoder,
+  getI64Encoder,
+  type Address,
+  type Base58EncodedBytes,
+} from '@solana/kit';
+import {
+  ESCROW_DISCRIMINATOR,
+  getEscrowDecoder,
+  getSubmissionDecoder,
+  OPENBOUNTY_V2_PROGRAM_ADDRESS,
+  SUBMISSION_DISCRIMINATOR,
+  type Escrow,
+  type Submission,
+} from '@/generated/openbounty';
 import { client } from '@/lib/client';
 import { findEscrowPda } from '@/lib/pda';
 
-// Every bounty account is exactly this size, and starts with this 8-byte type
-// marker (base58). The organizer's address sits at byte 8.
-const ESCROW_SIZE = 1846n;
-const ESCROW_DISCRIMINATOR_BASE58 = '6Kq5Q7N59ES' as Base58EncodedBytes;
-const ORGANIZER_OFFSET = 8n;
+// Reads straight from the chain with getProgramAccounts; there is no backend.
+// Each account type starts with its 8-byte discriminator. Both account types
+// have a fixed size (strings and lists are allocated at their maximum).
+const ESCROW_SIZE = 1870n;
+const SUBMISSION_SIZE = 539n;
+// The organizer (Escrow) and the escrow (Submission) sit right after the discriminator;
+// a Submission then has its escrow's createdAt.
+const FIRST_FIELD_OFFSET = 8n;
+const SUBMISSION_CREATED_AT_OFFSET = 40n;
+
+const base58 = getBase58Decoder();
+const base64 = getBase64Encoder();
+
+function memcmp(offset: bigint, bytes: string) {
+  return { memcmp: { offset, bytes: bytes as Base58EncodedBytes, encoding: 'base58' as const } };
+}
 
 export type EscrowRow = { address: Address; data: Escrow };
+export type SubmissionRow = { address: Address; data: Submission };
 
 async function listEscrows(organizer?: Address): Promise<EscrowRow[]> {
   const filters = [
     { dataSize: ESCROW_SIZE },
-    { memcmp: { offset: 0n, bytes: ESCROW_DISCRIMINATOR_BASE58, encoding: 'base58' as const } },
-    ...(organizer
-      ? [{ memcmp: { offset: ORGANIZER_OFFSET, bytes: organizer as unknown as Base58EncodedBytes, encoding: 'base58' as const } }]
-      : []),
+    memcmp(0n, base58.decode(ESCROW_DISCRIMINATOR)),
+    ...(organizer ? [memcmp(FIRST_FIELD_OFFSET, organizer)] : []),
   ];
   const rows = await client.rpc
     .getProgramAccounts(OPENBOUNTY_V2_PROGRAM_ADDRESS, { encoding: 'base64', filters })
     .send();
   const decoder = getEscrowDecoder();
-  const base64 = getBase64Encoder();
   return rows.map((row) => ({ address: row.pubkey, data: decoder.decode(base64.encode(row.account.data[0])) }));
 }
 
@@ -41,6 +64,28 @@ export function listEscrowsByOrganizer(organizer: Address): Promise<EscrowRow[]>
 export async function fetchEscrowOrNull(address: Address): Promise<EscrowRow | null> {
   const [account] = await client.openbountyV2.accounts.escrow.fetchAllMaybe([address]);
   return account.exists ? { address, data: account.data } : null;
+}
+
+/**
+ * Every entry submitted to one bounty, oldest first. `escrowCreatedAt` keeps out
+ * entries left from an earlier, closed bounty at the same address.
+ */
+export async function listSubmissions(escrow: Address, escrowCreatedAt: bigint): Promise<SubmissionRow[]> {
+  const rows = await client.rpc
+    .getProgramAccounts(OPENBOUNTY_V2_PROGRAM_ADDRESS, {
+      encoding: 'base64',
+      filters: [
+        { dataSize: SUBMISSION_SIZE },
+        memcmp(0n, base58.decode(SUBMISSION_DISCRIMINATOR)),
+        memcmp(FIRST_FIELD_OFFSET, escrow),
+        memcmp(SUBMISSION_CREATED_AT_OFFSET, base58.decode(getI64Encoder().encode(escrowCreatedAt))),
+      ],
+    })
+    .send();
+  const decoder = getSubmissionDecoder();
+  return rows
+    .map((row) => ({ address: row.pubkey, data: decoder.decode(base64.encode(row.account.data[0])) }))
+    .sort((a, b) => Number(a.data.submittedAt - b.data.submittedAt));
 }
 
 /** The lowest nonce (0-255) this organizer hasn't used yet, or null if all 256 are taken. */

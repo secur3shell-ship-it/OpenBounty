@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Generated from the IDL by Codama (npm run generate:client); never edited by hand.
+    "src/generated/**",
   ]),
 ]);
 

@@ -1,5 +1,6 @@
 pub mod constants;
 pub mod error;
+pub mod events;
 pub mod instructions;
 pub mod state;
 
@@ -38,8 +39,24 @@ pub mod openbounty_v2 {
         instructions::claim_prize::handle_claim_prize(ctx, tier_index)
     }
 
-    /// After the deadline, the organizer reclaims an eligible unclaimed tier.
+    /// The organizer reclaims a tier that never got a winner (after the
+    /// deadline) or whose winner didn't claim (after the claim window).
     pub fn refund_unclaimed(ctx: Context<RefundUnclaimed>, tier_index: u8) -> Result<()> {
         instructions::refund_unclaimed::handle_refund_unclaimed(ctx, tier_index)
+    }
+
+    /// A builder enters a bounty before its entry deadline.
+    pub fn submit_entry(
+        ctx: Context<SubmitEntry>,
+        title: String,
+        url: String,
+        description: String,
+    ) -> Result<()> {
+        instructions::submit_entry::handle_submit_entry(ctx, title, url, description)
+    }
+
+    /// After the deadline, a builder closes their entry and gets its rent back.
+    pub fn close_entry(ctx: Context<CloseEntry>) -> Result<()> {
+        instructions::close_entry::handle_close_entry(ctx)
     }
 }

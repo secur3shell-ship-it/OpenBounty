@@ -33,23 +33,38 @@ import {
   type SelfFetchFunctions,
   type SelfPlanAndSendFunctions,
 } from "@solana/program-client-core";
-import { getEscrowCodec, type Escrow, type EscrowArgs } from "../accounts";
+import {
+  getEscrowCodec,
+  getSubmissionCodec,
+  type Escrow,
+  type EscrowArgs,
+  type Submission,
+  type SubmissionArgs,
+} from "../accounts";
 import {
   getClaimPrizeInstruction,
+  getCloseEntryInstruction,
   getInitializeEscrowInstruction,
   getRefundUnclaimedInstruction,
+  getSubmitEntryInstruction,
   getVoteWinnerInstruction,
   parseClaimPrizeInstruction,
+  parseCloseEntryInstruction,
   parseInitializeEscrowInstruction,
   parseRefundUnclaimedInstruction,
+  parseSubmitEntryInstruction,
   parseVoteWinnerInstruction,
   type ClaimPrizeInput,
+  type CloseEntryInput,
   type InitializeEscrowInput,
   type ParsedClaimPrizeInstruction,
+  type ParsedCloseEntryInstruction,
   type ParsedInitializeEscrowInstruction,
   type ParsedRefundUnclaimedInstruction,
+  type ParsedSubmitEntryInstruction,
   type ParsedVoteWinnerInstruction,
   type RefundUnclaimedInput,
+  type SubmitEntryInput,
   type VoteWinnerInput,
 } from "../instructions";
 
@@ -58,6 +73,7 @@ export const OPENBOUNTY_V2_PROGRAM_ADDRESS =
 
 export enum OpenbountyV2Account {
   Escrow,
+  Submission,
 }
 
 export function identifyOpenbountyV2Account(
@@ -75,16 +91,137 @@ export function identifyOpenbountyV2Account(
   ) {
     return OpenbountyV2Account.Escrow;
   }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([58, 194, 159, 158, 75, 102, 178, 197]),
+      ),
+      0,
+    )
+  ) {
+    return OpenbountyV2Account.Submission;
+  }
   throw new SolanaError(
     SOLANA_ERROR__PROGRAM_CLIENTS__FAILED_TO_IDENTIFY_ACCOUNT,
     { accountData: data, programName: "openbountyV2" },
   );
 }
 
+export enum OpenbountyV2Event {
+  EntryClosed,
+  EntrySubmitted,
+  EscrowClosed,
+  EscrowInitialized,
+  PrizeClaimed,
+  TierFinalized,
+  TierRefunded,
+  VoteCast,
+}
+
+export function identifyOpenbountyV2Event(
+  event: { data: ReadonlyUint8Array } | ReadonlyUint8Array,
+): OpenbountyV2Event {
+  const data = "data" in event ? event.data : event;
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([238, 38, 131, 252, 14, 222, 236, 36]),
+      ),
+      0,
+    )
+  ) {
+    return OpenbountyV2Event.EntryClosed;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([224, 22, 158, 137, 145, 212, 95, 22]),
+      ),
+      0,
+    )
+  ) {
+    return OpenbountyV2Event.EntrySubmitted;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([109, 20, 57, 51, 217, 118, 3, 173]),
+      ),
+      0,
+    )
+  ) {
+    return OpenbountyV2Event.EscrowClosed;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([222, 186, 157, 47, 145, 142, 176, 248]),
+      ),
+      0,
+    )
+  ) {
+    return OpenbountyV2Event.EscrowInitialized;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([213, 150, 192, 76, 199, 33, 212, 38]),
+      ),
+      0,
+    )
+  ) {
+    return OpenbountyV2Event.PrizeClaimed;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([119, 204, 98, 159, 3, 208, 139, 154]),
+      ),
+      0,
+    )
+  ) {
+    return OpenbountyV2Event.TierFinalized;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([255, 244, 7, 120, 19, 207, 187, 156]),
+      ),
+      0,
+    )
+  ) {
+    return OpenbountyV2Event.TierRefunded;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([39, 53, 195, 104, 188, 17, 225, 213]),
+      ),
+      0,
+    )
+  ) {
+    return OpenbountyV2Event.VoteCast;
+  }
+  throw new Error(
+    "The provided event could not be identified as a openbountyV2 event.",
+  );
+}
+
 export enum OpenbountyV2Instruction {
   ClaimPrize,
+  CloseEntry,
   InitializeEscrow,
   RefundUnclaimed,
+  SubmitEntry,
   VoteWinner,
 }
 
@@ -102,6 +239,17 @@ export function identifyOpenbountyV2Instruction(
     )
   ) {
     return OpenbountyV2Instruction.ClaimPrize;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([132, 26, 202, 145, 190, 37, 114, 67]),
+      ),
+      0,
+    )
+  ) {
+    return OpenbountyV2Instruction.CloseEntry;
   }
   if (
     containsBytes(
@@ -129,6 +277,17 @@ export function identifyOpenbountyV2Instruction(
     containsBytes(
       data,
       fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([150, 212, 114, 178, 207, 212, 216, 222]),
+      ),
+      0,
+    )
+  ) {
+    return OpenbountyV2Instruction.SubmitEntry;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
         new Uint8Array([44, 247, 50, 25, 60, 91, 248, 84]),
       ),
       0,
@@ -149,11 +308,17 @@ export type ParsedOpenbountyV2Instruction<
       instructionType: OpenbountyV2Instruction.ClaimPrize;
     } & ParsedClaimPrizeInstruction<TProgram>)
   | ({
+      instructionType: OpenbountyV2Instruction.CloseEntry;
+    } & ParsedCloseEntryInstruction<TProgram>)
+  | ({
       instructionType: OpenbountyV2Instruction.InitializeEscrow;
     } & ParsedInitializeEscrowInstruction<TProgram>)
   | ({
       instructionType: OpenbountyV2Instruction.RefundUnclaimed;
     } & ParsedRefundUnclaimedInstruction<TProgram>)
+  | ({
+      instructionType: OpenbountyV2Instruction.SubmitEntry;
+    } & ParsedSubmitEntryInstruction<TProgram>)
   | ({
       instructionType: OpenbountyV2Instruction.VoteWinner;
     } & ParsedVoteWinnerInstruction<TProgram>);
@@ -170,6 +335,13 @@ export function parseOpenbountyV2Instruction<TProgram extends string>(
         ...parseClaimPrizeInstruction(instruction),
       };
     }
+    case OpenbountyV2Instruction.CloseEntry: {
+      assertIsInstructionWithAccounts(instruction);
+      return {
+        instructionType: OpenbountyV2Instruction.CloseEntry,
+        ...parseCloseEntryInstruction(instruction),
+      };
+    }
     case OpenbountyV2Instruction.InitializeEscrow: {
       assertIsInstructionWithAccounts(instruction);
       return {
@@ -182,6 +354,13 @@ export function parseOpenbountyV2Instruction<TProgram extends string>(
       return {
         instructionType: OpenbountyV2Instruction.RefundUnclaimed,
         ...parseRefundUnclaimedInstruction(instruction),
+      };
+    }
+    case OpenbountyV2Instruction.SubmitEntry: {
+      assertIsInstructionWithAccounts(instruction);
+      return {
+        instructionType: OpenbountyV2Instruction.SubmitEntry,
+        ...parseSubmitEntryInstruction(instruction),
       };
     }
     case OpenbountyV2Instruction.VoteWinner: {
@@ -213,12 +392,17 @@ export type OpenbountyV2Plugin = {
 export type OpenbountyV2PluginAccounts = {
   escrow: ReturnType<typeof getEscrowCodec> &
     SelfFetchFunctions<EscrowArgs, Escrow>;
+  submission: ReturnType<typeof getSubmissionCodec> &
+    SelfFetchFunctions<SubmissionArgs, Submission>;
 };
 
 export type OpenbountyV2PluginInstructions = {
   claimPrize: (
     input: ClaimPrizeInput,
   ) => ReturnType<typeof getClaimPrizeInstruction> & SelfPlanAndSendFunctions;
+  closeEntry: (
+    input: CloseEntryInput,
+  ) => ReturnType<typeof getCloseEntryInstruction> & SelfPlanAndSendFunctions;
   initializeEscrow: (
     input: InitializeEscrowInput,
   ) => ReturnType<typeof getInitializeEscrowInstruction> &
@@ -227,6 +411,9 @@ export type OpenbountyV2PluginInstructions = {
     input: RefundUnclaimedInput,
   ) => ReturnType<typeof getRefundUnclaimedInstruction> &
     SelfPlanAndSendFunctions;
+  submitEntry: (
+    input: SubmitEntryInput,
+  ) => ReturnType<typeof getSubmitEntryInstruction> & SelfPlanAndSendFunctions;
   voteWinner: (
     input: VoteWinnerInput,
   ) => ReturnType<typeof getVoteWinnerInstruction> & SelfPlanAndSendFunctions;
@@ -244,12 +431,20 @@ export function openbountyV2Program() {
   ): ExtendedClient<T, { openbountyV2: OpenbountyV2Plugin }> => {
     return extendClient(client, {
       openbountyV2: <OpenbountyV2Plugin>{
-        accounts: { escrow: addSelfFetchFunctions(client, getEscrowCodec()) },
+        accounts: {
+          escrow: addSelfFetchFunctions(client, getEscrowCodec()),
+          submission: addSelfFetchFunctions(client, getSubmissionCodec()),
+        },
         instructions: {
           claimPrize: (input) =>
             addSelfPlanAndSendFunctions(
               client,
               getClaimPrizeInstruction(input),
+            ),
+          closeEntry: (input) =>
+            addSelfPlanAndSendFunctions(
+              client,
+              getCloseEntryInstruction(input),
             ),
           initializeEscrow: (input) =>
             addSelfPlanAndSendFunctions(
@@ -260,6 +455,11 @@ export function openbountyV2Program() {
             addSelfPlanAndSendFunctions(
               client,
               getRefundUnclaimedInstruction(input),
+            ),
+          submitEntry: (input) =>
+            addSelfPlanAndSendFunctions(
+              client,
+              getSubmitEntryInstruction(input),
             ),
           voteWinner: (input) =>
             addSelfPlanAndSendFunctions(

@@ -31,8 +31,22 @@ export const PROGRAM_ERROR_MESSAGES: Record<number, string> = {
   [E.OPENBOUNTY_V2_ERROR__REFUND_NOT_ELIGIBLE]: "This prize can't be refunded.",
   [E.OPENBOUNTY_V2_ERROR__ORGANIZER_MISMATCH]: 'Something went wrong building the transaction. Refresh and try again.',
   [E.OPENBOUNTY_V2_ERROR__ARITHMETIC_OVERFLOW]: 'Amount calculation failed. Check the amounts.',
-  [E.OPENBOUNTY_V2_ERROR__NOT_IMPLEMENTED]: "This action isn't available yet.",
+  [E.OPENBOUNTY_V2_ERROR__VOTING_CLOSED]: 'Voting closed at the deadline.',
+  [E.OPENBOUNTY_V2_ERROR__INVALID_SUBMISSIONS_DEADLINE]: 'Entries must close in the future, and no later than the deadline.',
+  [E.OPENBOUNTY_V2_ERROR__INVALID_CLAIM_WINDOW]: 'The claim window must be 1 to 90 days.',
+  [E.OPENBOUNTY_V2_ERROR__CLAIM_WINDOW_CLOSED]: 'The claim window for this prize has closed.',
+  [E.OPENBOUNTY_V2_ERROR__CLAIM_WINDOW_OPEN]: 'The winner can still claim this prize. Try again after the claim window closes.',
+  [E.OPENBOUNTY_V2_ERROR__SUBMISSIONS_CLOSED]: 'Entries for this bounty have closed.',
+  [E.OPENBOUNTY_V2_ERROR__ORGANIZER_CANNOT_SUBMIT]: "Organizers can't enter their own bounty.",
+  [E.OPENBOUNTY_V2_ERROR__JUDGE_CANNOT_SUBMIT]: "Judges can't enter a bounty they judge.",
+  [E.OPENBOUNTY_V2_ERROR__INVALID_ENTRY_TITLE]: 'Give your entry a name of up to 50 bytes.',
+  [E.OPENBOUNTY_V2_ERROR__INVALID_ENTRY_URL]: 'Add a link of up to 100 bytes.',
+  [E.OPENBOUNTY_V2_ERROR__INVALID_ENTRY_DESCRIPTION]: 'Keep the description under 280 bytes.',
+  [E.OPENBOUNTY_V2_ERROR__ENTRY_LOCKED]: 'Entries can be closed only after the deadline.',
 };
+
+/** An error whose message is already written for the user (e.g. a failed form check). */
+export class UserFacingError extends Error {}
 
 /** Our program's error code (e.g. 6017) inside a failed send or simulation, or null. */
 export function programErrorCode(err: unknown): number | null {
@@ -44,9 +58,38 @@ export function programErrorCode(err: unknown): number | null {
   return null;
 }
 
+// Wallet and network errors, matched by a piece of their message (or a cause's)
+const OTHER_ERRORS: [string, string][] = [
+  ['rejected', 'You cancelled the transaction in your wallet.'],
+  ['already in use', 'That address is already taken. Refresh and try again.'],
+  ['insufficient lamports', "Your wallet doesn't have enough SOL."],
+  ['insufficient funds', "Your wallet doesn't have enough SOL."],
+  ['no record of a prior credit', "Your wallet doesn't have enough SOL."],
+  ['Blockhash not found', 'The network was busy. Please try again.'],
+  ['block height exceeded', 'The network was busy. Please try again.'],
+];
+
+function messages(err: unknown): string {
+  const parts: string[] = [];
+  let e: unknown = err;
+  for (let depth = 0; depth < 5 && e; depth++) {
+    parts.push(e instanceof Error ? e.message : String(e));
+    const logs = (e as { context?: { logs?: string[] } }).context?.logs;
+    if (logs) parts.push(logs.join('\n'));
+    e = (e as { cause?: unknown }).cause;
+  }
+  return parts.join('\n');
+}
+
 /** A message that's safe and useful to show the user. */
 export function describeError(err: unknown): string {
+  if (err instanceof UserFacingError) return err.message;
   const code = programErrorCode(err);
   if (code !== null) return PROGRAM_ERROR_MESSAGES[code] ?? `The program rejected this (error ${code}).`;
+  const text = messages(err);
+  for (const [piece, message] of OTHER_ERRORS) {
+    if (text.toLowerCase().includes(piece.toLowerCase())) return message;
+  }
+  console.error('Unmapped transaction error:', err);
   return 'Something went wrong. Check your wallet and network, then try again.';
 }

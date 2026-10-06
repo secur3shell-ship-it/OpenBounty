@@ -18,7 +18,7 @@ pub enum OpenBountyError {
     DuplicateJudge,
     #[msg("The organizer cannot be a judge")]
     OrganizerCannotBeJudge,
-    #[msg("Vote threshold must be between 1 and the number of judges")]
+    #[msg("Vote threshold must be a strict majority of the judges")]
     InvalidVoteThreshold,
     #[msg("Prize tier list is empty or exceeds the maximum number of tiers")]
     InvalidPrizeTierCount,
@@ -26,7 +26,7 @@ pub enum OpenBountyError {
     InvalidPrizeAmount,
     #[msg("Total prize pool overflows")]
     PrizePoolOverflow,
-    #[msg("Deadline must be in the future")]
+    #[msg("Deadline must be in the future and at most 365 days away")]
     InvalidDeadline,
     #[msg("Vault was not funded with the exact prize pool")]
     IncorrectFunding,
@@ -69,8 +69,31 @@ pub enum OpenBountyError {
     #[msg("Arithmetic overflow")]
     ArithmeticOverflow,
 
-    // --- Scaffold -----------------------------------------------------------
-    // Kept last so removing it does not renumber the protocol errors above.
-    #[msg("Instruction is not implemented yet")]
-    NotImplemented,
+    // --- Deadlines and the claim window -------------------------------------
+    #[msg("Voting closed at the deadline")]
+    VotingClosed,
+    #[msg("Entry deadline must be in the future and no later than the deadline")]
+    InvalidSubmissionsDeadline,
+    #[msg("Claim window is outside the allowed range")]
+    InvalidClaimWindow,
+    #[msg("The claim window for this prize has closed")]
+    ClaimWindowClosed,
+    #[msg("The winner can still claim this prize")]
+    ClaimWindowOpen,
+
+    // --- Entries (submit_entry, close_entry) --------------------------------
+    #[msg("Entries for this bounty have closed")]
+    SubmissionsClosed,
+    #[msg("The organizer cannot enter their own bounty")]
+    OrganizerCannotSubmit,
+    #[msg("A judge cannot enter a bounty they judge")]
+    JudgeCannotSubmit,
+    #[msg("Entry name is empty or exceeds the maximum length")]
+    InvalidEntryTitle,
+    #[msg("Entry link is empty or exceeds the maximum length")]
+    InvalidEntryUrl,
+    #[msg("Entry description exceeds the maximum length")]
+    InvalidEntryDescription,
+    #[msg("An entry can be closed only after the bounty's deadline")]
+    EntryLocked,
 }

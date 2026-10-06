@@ -24,7 +24,7 @@ export const OPENBOUNTY_V2_ERROR__INVALID_JUDGE_COUNT = 0x1772; // 6002
 export const OPENBOUNTY_V2_ERROR__DUPLICATE_JUDGE = 0x1773; // 6003
 /** OrganizerCannotBeJudge: The organizer cannot be a judge */
 export const OPENBOUNTY_V2_ERROR__ORGANIZER_CANNOT_BE_JUDGE = 0x1774; // 6004
-/** InvalidVoteThreshold: Vote threshold must be between 1 and the number of judges */
+/** InvalidVoteThreshold: Vote threshold must be a strict majority of the judges */
 export const OPENBOUNTY_V2_ERROR__INVALID_VOTE_THRESHOLD = 0x1775; // 6005
 /** InvalidPrizeTierCount: Prize tier list is empty or exceeds the maximum number of tiers */
 export const OPENBOUNTY_V2_ERROR__INVALID_PRIZE_TIER_COUNT = 0x1776; // 6006
@@ -32,7 +32,7 @@ export const OPENBOUNTY_V2_ERROR__INVALID_PRIZE_TIER_COUNT = 0x1776; // 6006
 export const OPENBOUNTY_V2_ERROR__INVALID_PRIZE_AMOUNT = 0x1777; // 6007
 /** PrizePoolOverflow: Total prize pool overflows */
 export const OPENBOUNTY_V2_ERROR__PRIZE_POOL_OVERFLOW = 0x1778; // 6008
-/** InvalidDeadline: Deadline must be in the future */
+/** InvalidDeadline: Deadline must be in the future and at most 365 days away */
 export const OPENBOUNTY_V2_ERROR__INVALID_DEADLINE = 0x1779; // 6009
 /** IncorrectFunding: Vault was not funded with the exact prize pool */
 export const OPENBOUNTY_V2_ERROR__INCORRECT_FUNDING = 0x177a; // 6010
@@ -64,66 +64,110 @@ export const OPENBOUNTY_V2_ERROR__REFUND_NOT_ELIGIBLE = 0x1786; // 6022
 export const OPENBOUNTY_V2_ERROR__ORGANIZER_MISMATCH = 0x1787; // 6023
 /** ArithmeticOverflow: Arithmetic overflow */
 export const OPENBOUNTY_V2_ERROR__ARITHMETIC_OVERFLOW = 0x1788; // 6024
-/** NotImplemented: Instruction is not implemented yet */
-export const OPENBOUNTY_V2_ERROR__NOT_IMPLEMENTED = 0x1789; // 6025
+/** VotingClosed: Voting closed at the deadline */
+export const OPENBOUNTY_V2_ERROR__VOTING_CLOSED = 0x1789; // 6025
+/** InvalidSubmissionsDeadline: Entry deadline must be in the future and no later than the deadline */
+export const OPENBOUNTY_V2_ERROR__INVALID_SUBMISSIONS_DEADLINE = 0x178a; // 6026
+/** InvalidClaimWindow: Claim window is outside the allowed range */
+export const OPENBOUNTY_V2_ERROR__INVALID_CLAIM_WINDOW = 0x178b; // 6027
+/** ClaimWindowClosed: The claim window for this prize has closed */
+export const OPENBOUNTY_V2_ERROR__CLAIM_WINDOW_CLOSED = 0x178c; // 6028
+/** ClaimWindowOpen: The winner can still claim this prize */
+export const OPENBOUNTY_V2_ERROR__CLAIM_WINDOW_OPEN = 0x178d; // 6029
+/** SubmissionsClosed: Entries for this bounty have closed */
+export const OPENBOUNTY_V2_ERROR__SUBMISSIONS_CLOSED = 0x178e; // 6030
+/** OrganizerCannotSubmit: The organizer cannot enter their own bounty */
+export const OPENBOUNTY_V2_ERROR__ORGANIZER_CANNOT_SUBMIT = 0x178f; // 6031
+/** JudgeCannotSubmit: A judge cannot enter a bounty they judge */
+export const OPENBOUNTY_V2_ERROR__JUDGE_CANNOT_SUBMIT = 0x1790; // 6032
+/** InvalidEntryTitle: Entry name is empty or exceeds the maximum length */
+export const OPENBOUNTY_V2_ERROR__INVALID_ENTRY_TITLE = 0x1791; // 6033
+/** InvalidEntryUrl: Entry link is empty or exceeds the maximum length */
+export const OPENBOUNTY_V2_ERROR__INVALID_ENTRY_URL = 0x1792; // 6034
+/** InvalidEntryDescription: Entry description exceeds the maximum length */
+export const OPENBOUNTY_V2_ERROR__INVALID_ENTRY_DESCRIPTION = 0x1793; // 6035
+/** EntryLocked: An entry can be closed only after the bounty's deadline */
+export const OPENBOUNTY_V2_ERROR__ENTRY_LOCKED = 0x1794; // 6036
 
 export type OpenbountyV2Error =
   | typeof OPENBOUNTY_V2_ERROR__ARITHMETIC_OVERFLOW
+  | typeof OPENBOUNTY_V2_ERROR__CLAIM_WINDOW_CLOSED
+  | typeof OPENBOUNTY_V2_ERROR__CLAIM_WINDOW_OPEN
   | typeof OPENBOUNTY_V2_ERROR__DEADLINE_NOT_REACHED
   | typeof OPENBOUNTY_V2_ERROR__DUPLICATE_JUDGE
   | typeof OPENBOUNTY_V2_ERROR__DUPLICATE_VOTE
+  | typeof OPENBOUNTY_V2_ERROR__ENTRY_LOCKED
   | typeof OPENBOUNTY_V2_ERROR__INCORRECT_FUNDING
   | typeof OPENBOUNTY_V2_ERROR__INVALID_CANDIDATE
+  | typeof OPENBOUNTY_V2_ERROR__INVALID_CLAIM_WINDOW
   | typeof OPENBOUNTY_V2_ERROR__INVALID_DEADLINE
+  | typeof OPENBOUNTY_V2_ERROR__INVALID_ENTRY_DESCRIPTION
+  | typeof OPENBOUNTY_V2_ERROR__INVALID_ENTRY_TITLE
+  | typeof OPENBOUNTY_V2_ERROR__INVALID_ENTRY_URL
   | typeof OPENBOUNTY_V2_ERROR__INVALID_JUDGE_COUNT
   | typeof OPENBOUNTY_V2_ERROR__INVALID_METADATA_URI
   | typeof OPENBOUNTY_V2_ERROR__INVALID_PRIZE_AMOUNT
   | typeof OPENBOUNTY_V2_ERROR__INVALID_PRIZE_TIER_COUNT
+  | typeof OPENBOUNTY_V2_ERROR__INVALID_SUBMISSIONS_DEADLINE
   | typeof OPENBOUNTY_V2_ERROR__INVALID_TIER
   | typeof OPENBOUNTY_V2_ERROR__INVALID_TITLE
   | typeof OPENBOUNTY_V2_ERROR__INVALID_VOTE_THRESHOLD
-  | typeof OPENBOUNTY_V2_ERROR__NOT_IMPLEMENTED
+  | typeof OPENBOUNTY_V2_ERROR__JUDGE_CANNOT_SUBMIT
   | typeof OPENBOUNTY_V2_ERROR__NOT_WINNER
   | typeof OPENBOUNTY_V2_ERROR__ORGANIZER_CANNOT_BE_JUDGE
+  | typeof OPENBOUNTY_V2_ERROR__ORGANIZER_CANNOT_SUBMIT
   | typeof OPENBOUNTY_V2_ERROR__ORGANIZER_CANNOT_VOTE
   | typeof OPENBOUNTY_V2_ERROR__ORGANIZER_MISMATCH
   | typeof OPENBOUNTY_V2_ERROR__PRIZE_ALREADY_CLAIMED
   | typeof OPENBOUNTY_V2_ERROR__PRIZE_POOL_OVERFLOW
   | typeof OPENBOUNTY_V2_ERROR__REFUND_NOT_ELIGIBLE
+  | typeof OPENBOUNTY_V2_ERROR__SUBMISSIONS_CLOSED
   | typeof OPENBOUNTY_V2_ERROR__TIER_ALREADY_FINALIZED
   | typeof OPENBOUNTY_V2_ERROR__TIER_NOT_FINALIZED
   | typeof OPENBOUNTY_V2_ERROR__UNAUTHORIZED_JUDGE
-  | typeof OPENBOUNTY_V2_ERROR__UNAUTHORIZED_ORGANIZER;
+  | typeof OPENBOUNTY_V2_ERROR__UNAUTHORIZED_ORGANIZER
+  | typeof OPENBOUNTY_V2_ERROR__VOTING_CLOSED;
 
 let openbountyV2ErrorMessages: Record<OpenbountyV2Error, string> | undefined;
 if (process.env["NODE_ENV"] !== "production") {
   openbountyV2ErrorMessages = {
     [OPENBOUNTY_V2_ERROR__ARITHMETIC_OVERFLOW]: `Arithmetic overflow`,
+    [OPENBOUNTY_V2_ERROR__CLAIM_WINDOW_CLOSED]: `The claim window for this prize has closed`,
+    [OPENBOUNTY_V2_ERROR__CLAIM_WINDOW_OPEN]: `The winner can still claim this prize`,
     [OPENBOUNTY_V2_ERROR__DEADLINE_NOT_REACHED]: `Deadline has not been reached`,
     [OPENBOUNTY_V2_ERROR__DUPLICATE_JUDGE]: `Judge list contains a duplicate judge`,
     [OPENBOUNTY_V2_ERROR__DUPLICATE_VOTE]: `Judge has already voted on this prize tier`,
+    [OPENBOUNTY_V2_ERROR__ENTRY_LOCKED]: `An entry can be closed only after the bounty's deadline`,
     [OPENBOUNTY_V2_ERROR__INCORRECT_FUNDING]: `Vault was not funded with the exact prize pool`,
     [OPENBOUNTY_V2_ERROR__INVALID_CANDIDATE]: `Candidate is not eligible to win`,
-    [OPENBOUNTY_V2_ERROR__INVALID_DEADLINE]: `Deadline must be in the future`,
+    [OPENBOUNTY_V2_ERROR__INVALID_CLAIM_WINDOW]: `Claim window is outside the allowed range`,
+    [OPENBOUNTY_V2_ERROR__INVALID_DEADLINE]: `Deadline must be in the future and at most 365 days away`,
+    [OPENBOUNTY_V2_ERROR__INVALID_ENTRY_DESCRIPTION]: `Entry description exceeds the maximum length`,
+    [OPENBOUNTY_V2_ERROR__INVALID_ENTRY_TITLE]: `Entry name is empty or exceeds the maximum length`,
+    [OPENBOUNTY_V2_ERROR__INVALID_ENTRY_URL]: `Entry link is empty or exceeds the maximum length`,
     [OPENBOUNTY_V2_ERROR__INVALID_JUDGE_COUNT]: `Judge list is empty or exceeds the maximum number of judges`,
     [OPENBOUNTY_V2_ERROR__INVALID_METADATA_URI]: `Metadata URI exceeds the maximum length`,
     [OPENBOUNTY_V2_ERROR__INVALID_PRIZE_AMOUNT]: `Prize tier amount is below the minimum`,
     [OPENBOUNTY_V2_ERROR__INVALID_PRIZE_TIER_COUNT]: `Prize tier list is empty or exceeds the maximum number of tiers`,
+    [OPENBOUNTY_V2_ERROR__INVALID_SUBMISSIONS_DEADLINE]: `Entry deadline must be in the future and no later than the deadline`,
     [OPENBOUNTY_V2_ERROR__INVALID_TIER]: `Prize tier index is out of range`,
     [OPENBOUNTY_V2_ERROR__INVALID_TITLE]: `Title is empty or exceeds the maximum length`,
-    [OPENBOUNTY_V2_ERROR__INVALID_VOTE_THRESHOLD]: `Vote threshold must be between 1 and the number of judges`,
-    [OPENBOUNTY_V2_ERROR__NOT_IMPLEMENTED]: `Instruction is not implemented yet`,
+    [OPENBOUNTY_V2_ERROR__INVALID_VOTE_THRESHOLD]: `Vote threshold must be a strict majority of the judges`,
+    [OPENBOUNTY_V2_ERROR__JUDGE_CANNOT_SUBMIT]: `A judge cannot enter a bounty they judge`,
     [OPENBOUNTY_V2_ERROR__NOT_WINNER]: `Signer is not the winner of this prize tier`,
     [OPENBOUNTY_V2_ERROR__ORGANIZER_CANNOT_BE_JUDGE]: `The organizer cannot be a judge`,
+    [OPENBOUNTY_V2_ERROR__ORGANIZER_CANNOT_SUBMIT]: `The organizer cannot enter their own bounty`,
     [OPENBOUNTY_V2_ERROR__ORGANIZER_CANNOT_VOTE]: `The organizer cannot vote`,
     [OPENBOUNTY_V2_ERROR__ORGANIZER_MISMATCH]: `Organizer account does not match the escrow organizer`,
     [OPENBOUNTY_V2_ERROR__PRIZE_ALREADY_CLAIMED]: `Prize has already been claimed`,
     [OPENBOUNTY_V2_ERROR__PRIZE_POOL_OVERFLOW]: `Total prize pool overflows`,
     [OPENBOUNTY_V2_ERROR__REFUND_NOT_ELIGIBLE]: `Prize tier is not eligible for refund`,
+    [OPENBOUNTY_V2_ERROR__SUBMISSIONS_CLOSED]: `Entries for this bounty have closed`,
     [OPENBOUNTY_V2_ERROR__TIER_ALREADY_FINALIZED]: `Prize tier already has a finalized winner`,
     [OPENBOUNTY_V2_ERROR__TIER_NOT_FINALIZED]: `Prize tier has no finalized winner`,
     [OPENBOUNTY_V2_ERROR__UNAUTHORIZED_JUDGE]: `Signer is not a judge of this escrow`,
     [OPENBOUNTY_V2_ERROR__UNAUTHORIZED_ORGANIZER]: `Signer is not the organizer of this escrow`,
+    [OPENBOUNTY_V2_ERROR__VOTING_CLOSED]: `Voting closed at the deadline`,
   };
 }
 
