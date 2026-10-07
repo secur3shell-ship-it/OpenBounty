@@ -3,7 +3,6 @@ name = "openbounty_v2"
 version = "0.1.0"
 description = "OpenBounty: trustless on-chain escrow for hackathon prize bounties"
 license = "MIT"
-repository = "https://github.com/secur3shell-ship-it/OpenBounty"
 edition.workspace = true
 rust-version.workspace = true
 

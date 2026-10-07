@@ -29,10 +29,10 @@ env:
 
 jobs:
   program:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 40
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # rustup reads rust-toolchain.toml (Rust 1.89.0 with rustfmt and clippy).
       - name: Rust toolchain
@@ -41,7 +41,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
 
       - name: Cache Solana CLI and platform tools
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             ~/.local/share/solana
@@ -71,7 +71,7 @@ jobs:
       - name: Tool versions
         run: rustc --version && solana --version && anchor --version && surfpool --version
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: yarn
@@ -88,13 +88,14 @@ jobs:
       - name: Rust unit tests
         run: cargo test -p openbounty_v2
 
-      - name: Test typecheck
-        run: yarn typecheck
-
       - name: Committed IDL matches the program
         run: |
           anchor build
           git diff --exit-code idl/ || { echo "::error::idl/ is out of date: run anchor build and commit idl/"; exit 1; }
+
+      # The tests import target/types/, which anchor build generates.
+      - name: Test typecheck
+        run: yarn typecheck
 
       # The program keypair (target/deploy/*-keypair.json) is never committed, so
       # CI deploys the program under a throwaway ID: keys sync rewrites
@@ -107,15 +108,15 @@ jobs:
           OPENBOUNTY_WALLET="$RUNNER_TEMP/deployer.json" yarn test
 
   frontend:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     defaults:
       run:
         working-directory: offchain
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
