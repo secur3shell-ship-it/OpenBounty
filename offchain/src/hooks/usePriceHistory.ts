@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { MarketId } from "@/constants/markets";
 import type { ChartRange, PricePoint } from "@/types/market";
-import { fetchPriceHistory } from "@/lib/marketFeed";
+import { fetchPriceHistory } from "@/lib/marketData";
 
 interface Loaded {
   id: MarketId;

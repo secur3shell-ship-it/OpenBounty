@@ -90,11 +90,11 @@ Rules:
 
 | Route | Page | Status |
 |---|---|---|
-| `/` | **Explore:** all bounties, filter by Open, Ending soon, Judging or Ended. Below them, the **"Around Solana"** news section (hidden when no market feed is set). | Live |
+| `/` | **Explore:** all bounties, filter by Open, Ending soon, Judging or Ended. Below them, the **"Around Solana"** news section (real items from Solana's RSS). | Live |
 | `/bounty/[address]` | **Bounty detail:** tabs **Prizes** (tiers with vote progress), **Submissions** (entries) and **Judging** (only for that bounty's judges), next to a panel with the three dates, judges and organizer. Actions depend on your role: submit or close an entry (builder), vote (judge), claim (winner, within the claim window), refund (organizer, once something is refundable). | Live |
 | `/create` | **Create bounty** form: basics, judges, SOL prizes, and the timeline (entries close, judging ends, claim window) | Live |
 | `/me` | **Your bounties:** "Needs your vote", "Ready to claim", "Refund available", "Organizing", "Judging" | Live |
-| `/markets` | **Markets:**<br>• live prices, 24h change and sparklines for Solana tokens, plus BTC and ETH for reference<br>• a big chart (1H, 24H, 7D, 30D)<br>• the "What's my prize worth?" converter<br><br>Data comes from our read-only market feed (`NEXT_PUBLIC_MARKET_FEED_URL`, see `offchain/docs/features/markets-feed.md`), which credits its price source on the page. Without a feed the page says live prices aren't connected. | Live |
+| `/markets` | **Markets:**<br>• live prices, 24h change and sparklines for Solana tokens, plus BTC and ETH for reference<br>• a big chart (1H, 24H, 7D, 30D)<br>• the "What's my prize worth?" converter<br><br>Prices come from CoinGecko's free API, called by the browser and refreshed every minute ("Price data from CoinGecko" is credited). The real-time feed backend (`offchain/docs/features/markets-feed.md`) is parked; setting `NEXT_PUBLIC_MARKET_FEED_URL` would switch to it. | Live |
 | not found | `app/not-found.tsx` with a link home | Live |
 
 ### Status names users see

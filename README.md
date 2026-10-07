@@ -27,11 +27,38 @@ the frontend: a Next.js app built against the committed IDL (see
 | ProgramData account | `FheYHSZ3qgeCyTVy2GkhYty3BqEKG4NG1Y8jusnCKaBH` |
 | Upgrade authority | `Ad5NzuNtFGG5GfWkSA4fkF3yViQiefv96BeESSMURwqk` (the OpenBounty deployer; moving to a multisig, see [Devnet](#devnet)) |
 | On-chain IDL (Program Metadata) | `C3R2fiQ3EHwZHUSCPwWcAXrsVDGF67WSjmDQVwJqerFq`, identical to [`idl/openbounty_v2.json`](idl/openbounty_v2.json) |
+| Website (devnet) | https://open-bounty-ten.vercel.app (Vercel project root: `offchain/`) |
 | Mainnet | Not deployed |
 
 The same ID is set in `declare_id!` ([`lib.rs`](programs/openbounty_v2/src/lib.rs)) and in
 `Anchor.toml` (`[programs.localnet]` and `[programs.devnet]`). The frontend reads it from the
 generated client (`OPENBOUNTY_V2_PROGRAM_ADDRESS`).
+
+### RPC endpoints
+
+The project uses three separate devnet RPC keys (Helius). Each has one job and
+lives in one place, and none of them is in the repo.
+
+| # | Used for | Where it lives | Read by | Protection |
+| - | -------- | -------------- | ------- | ---------- |
+| 1 | Deploying and upgrading the program, `yarn seed:devnet`, `solana` CLI commands | `~/.config/openbounty/solana-cli.yml` (`json_rpc_url`), outside the repo | `scripts/deploy-devnet.sh`, `scripts/seed-devnet.ts`, `solana -C ~/.config/openbounty/solana-cli.yml …` | A real secret: only on the owner's machine |
+| 2 | The live website | Vercel → Environment Variables → `NEXT_PUBLIC_SOLANA_RPC_URL` (Production) | The browser on `open-bounty-ten.vercel.app` | Helius **Access Control → Allowed Domains**: `open-bounty-ten.vercel.app` |
+| 3 | Running the website locally | `offchain/.env.local` → `NEXT_PUBLIC_SOLANA_RPC_URL` (gitignored) | The browser on `localhost` | Separate key, so its use never counts against the website's |
+
+- **Key 1 must never go into Vercel, `.env.local` or any `NEXT_PUBLIC_` variable.**
+  `NEXT_PUBLIC_` values are built into the website's JavaScript, so keys 2 and
+  3 are public by design.
+- **The domain lock stops other websites, not scripts.** Helius checks the
+  request's `Origin` header, which a browser sets honestly and a script can
+  fake. That's enough for a devnet key; before mainnet, use Helius Secure
+  URLs (paid) or a server-side proxy.
+- **Changing key 2:** update the Vercel variable, then redeploy (the value is
+  fixed at build time). Changing key 3: edit `.env.local`, then restart
+  `npm run dev`.
+- **Without a key** the website falls back to the public
+  `https://api.devnet.solana.com`, which works but is slow and rate-limited.
+- The website does not use the deployer's RPC, and the scripts don't use the
+  website's.
 
 ## Names
 
@@ -375,5 +402,7 @@ because clients match on the codes. The program keypair is never shared.
   sizing needs, and `#[constant]` can't export `usize`. Clients mirror
   `constants.rs`.
 - **Upgrade authority is still a single key** until the multisig move above.
-- **No backend for bounty state.** The only server is the planned read-only
-  markets/news feed (`offchain/docs/features/markets-feed.md`).
+- **No backend at all.** Market prices (CoinGecko) and news (Solana's RSS)
+  are fetched by the browser. A real-time read-only feed backend is designed
+  (`offchain/docs/features/markets-feed.md`) but parked until the owner says
+  otherwise.

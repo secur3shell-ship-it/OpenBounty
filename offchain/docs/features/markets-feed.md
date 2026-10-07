@@ -1,6 +1,6 @@
 # Market feed: what the backend must serve
 
-> **Status: contract agreed in the frontend, backend not built yet.** The frontend client is done (`src/lib/marketFeed.ts`). This page is the spec for the small backend the project owner builds in this repo (Node + Express + socket.io).
+> **Status: PARKED (owner's decision, 2026-10-07).** Don't build the backend until the owner says so. Today the app gets prices from CoinGecko and news from Solana's RSS straight from the browser (`src/lib/marketData.ts`). This page stays as the spec: the frontend client (`src/lib/marketFeed.ts`) is kept, and setting `NEXT_PUBLIC_MARKET_FEED_URL` switches the app over with no code change. The build plan is in `doc/markets_feed_plan.md` (Pyth prices, Solana RSS news, `feed/` folder).
 
 ## In one paragraph
 

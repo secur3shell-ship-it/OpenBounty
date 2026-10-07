@@ -105,7 +105,7 @@ Amounts are lamports and times are unix seconds, both as `bigint`, exactly as th
 | `useMyEntries` | Your entries on every bounty (matched to their bounty, or `null` once it closed), the entry rent, and `closeEntry(entry)` |
 | `useClaimSignatures` | tierIndex → claim transaction for a bounty's claimed prizes, read with `lib/history.ts` |
 | `useScorecard(bounty, judge)` | `scorecard` and `saveScore` |
-| `useMarketQuotes`, `usePriceHistory`, `useNews` | Live prices, chart history and news from the market feed (see [../features/markets-feed.md](../features/markets-feed.md)) |
+| `useMarketQuotes`, `usePriceHistory`, `useNews` | Prices (every minute), chart history and news, from `lib/marketData.ts` |
 | `useNow`, `useElementWidth` | A ticking clock for "Updated 12s ago", and an element's width for drawing charts at the exact size |
 
 ### Chain access (`src/lib/`) and checks (`src/domain/`)
@@ -120,7 +120,11 @@ Amounts are lamports and times are unix seconds, both as `bigint`, exactly as th
 | `lib/chain.ts` | `networkNow` (use it, not `Date.now()`, for final deadline checks), `getBalanceLamports`, `getRentMinimum` |
 | `lib/errors.ts` | Friendly text for every program error and common wallet errors, and `UserFacingError` for messages that are already written for users |
 | `lib/config.ts` | RPC URL, wallet chain (`solana:devnet`), explorer cluster |
-| `lib/marketFeed.ts` | The socket.io connection and REST calls to the market feed |
+| `lib/marketData.ts` | Picks the data source: browser-only today (CoinGecko + Solana RSS), or the parked live feed when `NEXT_PUBLIC_MARKET_FEED_URL` is set |
+| `lib/coingecko.ts` | CoinGecko from the browser: one call for every token's price, 24h change and 7-day hourly prices; 1H/30D history on demand; cached; friendly "busy" message when rate-limited |
+| `lib/marketPolling.ts` | Refreshes prices every minute while Markets is open and the tab is visible; keeps the last prices when a refresh fails |
+| `lib/solanaNews.ts` | Reads `solana.com/news/rss.xml` in the browser, plain text only, http(s) links only, 6 newest, cached 10 min |
+| `lib/marketFeed.ts` | **Parked:** the socket.io client for the real-time feed backend ([../features/markets-feed.md](../features/markets-feed.md)) |
 | `domain/validation.ts` | `validateCreate`, `voteProblem`, `claimProblem`, `refundProblem`, `minimumPrize`: the program's rules, so users get a clear message before signing. `rules.ts`, `tier.ts` and `roles.ts` hold the limits and small helpers they use. Tests: `domain.test.ts`. |
 | `generated/openbounty/` | Generated from `../idl/openbounty_v2.json` with `npm run generate:client`. Never edit by hand. |
 
@@ -134,7 +138,7 @@ npm run dev     # http://localhost:3000, against the real program on devnet
 - **Sample data:** the on-chain side runs `yarn seed:devnet` from the repo root to create sample bounties.
 - **Every role with one person:** use a few wallets (or accounts in one wallet). Create a bounty with one, add the others as judges, and submit entries from a wallet that is neither.
 - **Waiting for dates:** entries close, judging ends and the claim window are real times on devnet. Use short times (the form allows dates 10 minutes ahead, and a 1-day claim window) to see each stage.
-- **Markets and news:** set `NEXT_PUBLIC_MARKET_FEED_URL` in `.env.local` to see them; without it the Markets page says prices aren't connected and the news section is hidden.
+- **Markets and news:** work with no setup (CoinGecko and Solana's RSS, from the browser). Leave `NEXT_PUBLIC_MARKET_FEED_URL` unset; the backend it points to is parked.
 
 ## Checks
 
@@ -154,7 +158,7 @@ Then run the checklist at the end of `.claude/skills/openbounty-ui/SKILL.md`.
 - **UI refactor:** shadcn theme, new header and mobile nav, Explore, Create, bounty detail, "Your bounties" (`/me`) and the 404 page, with loading, empty and error states, mobile layouts and accessibility fixes.
 - **Deeper brown palette:** same hue, 2–3 points darker. Only the base palette in `globals.css` changed; every text color still passes contrast. The old values are in git history.
 - **Entries, judging board and scorecards:** first built as a preview, now real on-chain. See [../features/judging.md](../features/judging.md).
-- **Markets page and home-page news:** now fed by the read-only market feed. See [../features/markets-feed.md](../features/markets-feed.md).
+- **Markets page and home-page news:** browser-only, like the reference: CoinGecko every minute, and real news from Solana's RSS. The real-time feed backend is designed ([../features/markets-feed.md](../features/markets-feed.md)) but parked (2026-10-07).
 - **Move to `@solana/kit`:** web3.js, Anchor's client and wallet-adapter were replaced by Kit, a Codama client generated from the IDL, and our own wallet picker. Mock mode was removed; the app always runs against devnet.
 - **Bounty timeline:** each bounty now has entries close, judging ends and a claim window, with matching statuses and refunds.
 - **Planned for phase 2:** prizes in other tokens and "claim in any token". See [../features/claim-in-any-token.md](../features/claim-in-any-token.md).

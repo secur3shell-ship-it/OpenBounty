@@ -20,7 +20,7 @@ Charts are hand-drawn SVG (no chart library, which keeps pages light) and follow
 
 | Component | What it shows | Props |
 |---|---|---|
-| `MarketsView` | The whole `/markets` page. Prices are pushed by our market feed (see [../features/markets-feed.md](../features/markets-feed.md)):<br>• `MarketsStatusLine`, plus a note that prices are for information and prizes are paid in SOL<br>• "Tokens on Solana" and "For reference" cards<br>• `MarketChartPanel` next to `PrizeConverter`, pre-filled with your first SOL prize to claim; bounties load only when a wallet is connected<br>• "Live prices aren't connected yet" when `NEXT_PUBLIC_MARKET_FEED_URL` isn't set, plus loading and error (Retry) states | none |
+| `MarketsView` | The whole `/markets` page. Prices come from `lib/marketData.ts`: CoinGecko from the browser, refreshed every minute (the parked live feed when `NEXT_PUBLIC_MARKET_FEED_URL` is set):<br>• `MarketsStatusLine`, plus a note that prices are for information and prizes are paid in SOL<br>• "Tokens on Solana" and "For reference" cards<br>• `MarketChartPanel` next to `PrizeConverter`, pre-filled with your first SOL prize to claim; bounties load only when a wallet is connected<br>• loading, error (Try again) and "Couldn't refresh, showing the last prices" states | none |
 | `MarketsStatusLine` | "Updated 12s ago", the source credit (when the feed reports one), and "Live updates paused. Reconnecting" while the connection is restored | `status`, `updatedAt`, `source`, `hasQuotes` |
 | `UpdatedAgo` | "Updated 12s ago". Ticks by itself, so only the label re-renders each second. | `date` |
 | `MarketCard` | A token's name, price, 24h change and sparkline. It's a toggle button (`aria-pressed`) that picks the token shown in the big chart; BTC and ETH are tagged "Reference". | `asset`, `quote`, `selected`, `onSelect` |
@@ -37,7 +37,7 @@ Chart helpers are in `src/utils/chart.ts` (`scaleLinear`, `niceTicks`, `formatTi
 
 | Component | What it shows | Props |
 |---|---|---|
-| `NewsFeed` | "Around Solana" section below the bounties on the home page, from the feed's `GET /news` (hidden when no feed is configured): heading, a "Sample" badge while the feed says `isSample`, a "More news" link to solana.com/news, and a grid of `NewsCard`s with loading, empty and error states | none |
+| `NewsFeed` | "Around Solana" section below the bounties on the home page, from Solana's official RSS (`lib/solanaNews.ts`; the parked feed's `GET /news` if configured): heading, a "Sample" badge only if a source marks its items as samples, a "More news" link to solana.com/news, and a grid of `NewsCard`s with loading, empty and error states | none |
 | `NewsCard` | Source and time ago, headline, a 2-line summary and "Read more". The whole card opens the article in a new tab (announced to screen readers). | `item` (`NewsItem`) |
 | `NewsCardSkeleton` | Loading placeholder with the same shape | none |
 

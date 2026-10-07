@@ -3,8 +3,10 @@
 The website for OpenBounty. It reads the `openbounty_v2` program on Solana
 **devnet** and asks the user's wallet to sign. There's no backend for bounties
 or votes: the program enforces every rule, and this app only shows data and
-builds transactions. The one server it can talk to is the owner's read-only
-market and news feed (see [docs/features/markets-feed.md](docs/features/markets-feed.md)).
+builds transactions. Market prices come straight from CoinGecko's free API and
+news from Solana's RSS feed, both called by the browser (no server of ours). A
+real-time backend for prices is designed but parked
+([docs/features/markets-feed.md](docs/features/markets-feed.md)).
 
 **Program ID (devnet):** [`HTvHgRG4uHnj1KQeynNXsKEvBE3oqsc9TxRaGTgqgEk4`](https://explorer.solana.com/address/HTvHgRG4uHnj1KQeynNXsKEvBE3oqsc9TxRaGTgqgEk4?cluster=devnet).
 The app takes it from the generated client (`OPENBOUNTY_V2_PROGRAM_ADDRESS`), so it changes only when
@@ -29,8 +31,8 @@ root.
 
 | Variable | What it does |
 |---|---|
-| `NEXT_PUBLIC_SOLANA_RPC_URL` | Devnet RPC. The public URL works but is slow; use your own provider URL. |
-| `NEXT_PUBLIC_MARKET_FEED_URL` | Origin of the market and news feed. Leave it unset and the Markets page says live prices aren't connected, and the home-page news is hidden. |
+| `NEXT_PUBLIC_SOLANA_RPC_URL` | Devnet RPC. Locally, the full URL of the **local** Helius key; on Vercel, the website key (set in the Vercel dashboard, not here). Never the deployer's RPC. Without it, the public devnet URL is used (slow). See "RPC endpoints" in the [root README](../README.md#rpc-endpoints). |
+| `NEXT_PUBLIC_MARKET_FEED_URL` | **Parked; leave unset.** When the real-time feed backend exists, setting its origin switches Markets and news over to it. Unset (today): prices from CoinGecko every minute and news from Solana's RSS, straight from the browser. |
 
 ## Scripts
 
@@ -69,8 +71,9 @@ The on-chain side commits the new IDL together with each program change.
 
 - The program is the source of truth. The checks in `src/domain/validation.ts`
   and the form checks only give early, friendly messages.
-- Never add a backend for bounty state, votes or funds. The market feed is
-  read-only and nothing on-chain depends on it.
+- Never add a backend for bounty state, votes or funds. The real-time market
+  feed is parked (owner's decision, 2026-10-07); don't build it until the owner
+  says so.
 - The program, `../idl/` and `../tests/` are the on-chain side. Change them
   only when a feature needs it, and keep `../idl/` in the same change.
 - Everything starting with `NEXT_PUBLIC_` is visible in the browser: never put

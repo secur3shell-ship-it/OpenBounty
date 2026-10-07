@@ -1,11 +1,11 @@
 "use client";
 
-// The latest news from the market feed's news endpoint, loaded once per visit.
-// `enabled` is false when no feed is configured; the news section is hidden then.
+// The latest Solana news (lib/marketData: Solana's RSS today, the parked feed's /news
+// when it's configured), loaded once per visit.
 
 import { useCallback, useEffect, useState } from "react";
 import type { NewsFeedData } from "@/types/news";
-import { fetchNews, MARKET_FEED_URL } from "@/lib/marketFeed";
+import { fetchNews } from "@/lib/marketData";
 
 interface Result {
   tick: number;
@@ -14,7 +14,7 @@ interface Result {
 }
 
 export function useNews() {
-  const enabled = MARKET_FEED_URL !== null;
+  const enabled = true;
   const [result, setResult] = useState<Result | null>(null);
   const [tick, setTick] = useState(0);
 

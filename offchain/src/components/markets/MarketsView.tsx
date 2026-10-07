@@ -107,7 +107,7 @@ export default function MarketsView() {
     <div className="flex flex-col gap-8">
       <PageHeader
         title="Markets"
-        description="Live prices for popular Solana tokens, plus Bitcoin and Ethereum for reference."
+        description="Prices for popular Solana tokens, plus Bitcoin and Ethereum for reference."
       />
 
       {market.status !== "off" && (
@@ -117,6 +117,7 @@ export default function MarketsView() {
             updatedAt={market.updatedAt}
             source={market.source}
             hasQuotes={market.quotes.length > 0}
+            mode={market.mode}
           />
           <Alert>
             <Info aria-hidden />
