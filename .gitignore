@@ -17,8 +17,10 @@ id.json
 .env
 .env.*
 
-# Local context and handoff docs (shared by hand, never committed)
+# Private docs: only the root README.md is public. Developer docs live in doc/ and
+# offchain/docs/; agent instructions live in .claude/ and offchain/AGENTS.md, CLAUDE.md.
 doc/
+.claude/
 
 # OS / editor
 .DS_Store

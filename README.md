@@ -1,408 +1,248 @@
 # OpenBounty
 
-Trustless, on-chain escrow for hackathon prize bounties on Solana.
+**Trustless prize bounties on Solana.** An organizer locks the whole prize pool on-chain when the bounty is created. Builders submit their entries on-chain, judges vote on-chain, and winners claim their prize directly. Nobody (not even the organizer) can change the result or take the money once it's locked.
 
-An organizer locks the full prize pool in a program-controlled vault when the
-bounty is created. Judges vote for winners on-chain, each signing their own
-transaction. A prize tier finalizes automatically when a candidate reaches the
-vote threshold, and the winner claims the prize with no one's approval, within
-a claim window the organizer sets. Builders submit their entries on-chain.
-After the deadline, the organizer can reclaim only prize funds that are
-eligible for refund.
+**Try it:** [open-bounty-ten.vercel.app](https://open-bounty-ten.vercel.app) (Solana **devnet**, no real money)
 
-This repository holds the on-chain program and, in [`offchain/`](offchain/README.md),
-the frontend: a Next.js app built against the committed IDL (see
-[Integration boundary](#integration-boundary-idl)).
+---
 
-> **Status: v1 (SOL prizes), live on devnet since 2026-10-06.** All six
-> instructions are implemented and tested (51 integration tests), the program
-> is upgraded on devnet, and the full flow has been run there through the
-> frontend. See [Current limitations](#current-limitations).
+## Contents
+
+- [Why OpenBounty](#why-openbounty)
+- [How it works](#how-it-works)
+- [Features](#features)
+- [How to use it](#how-to-use-it)
+- [Rules the program enforces](#rules-the-program-enforces)
+- [Try it in five minutes (for judges)](#try-it-in-five-minutes-for-judges)
+- [Deployment](#deployment)
+- [How it's built](#how-its-built)
+- [Testing and checks](#testing-and-checks)
+- [Run it yourself](#run-it-yourself)
+- [Roadmap](#roadmap)
+- [FAQ](#faq)
+
+---
+
+## Why OpenBounty
+
+Hackathon and community bounties usually run on trust:
+- the organizer promises a prize, then picks winners in a private chat;
+- winners wait for someone to send the money, sometimes for weeks;
+- nobody can check that the prize was ever there.
+
+OpenBounty puts every step on-chain:
+- **The money is locked up front.** A bounty can't exist without its full prize pool in a vault the program controls.
+- **Judging is public.** Every vote is a signed transaction anyone can see.
+- **Payouts are automatic and self-service.** A winner is decided the moment enough judges agree, and the winner claims the prize themselves. No one has to approve it.
+- **Refunds are limited by rules.** The organizer gets back only what the rules allow, only after the deadlines.
+
+## How it works
+
+Every bounty has three dates, set by the organizer:
+
+```text
+  created          entries close        judging ends            claim window ends
+     │  builders enter  │  judges keep voting  │  winners claim their prize  │
+     ●──────────────────●─────────────────────●─────────────────────────────●──────▶
+     │                  │                      │                             │
+  prize pool         no new entries        no more votes;          unclaimed winners' prizes
+  locked in vault                          prizes with no winner   can be refunded too
+                                           can be refunded
+```
+
+1. **Create.** The organizer sets a title, up to 5 judges, how many votes pick a winner (always more than half of the judges), up to 4 prizes in SOL, and the three dates. The whole prize pool moves into a program-controlled vault in the same transaction.
+2. **Enter.** Builders submit an entry (project name, link, short description) before entries close.
+3. **Judge.** Each judge votes for a candidate on each prize. A vote can't be changed. As soon as one candidate reaches the required votes, the program records them as that prize's winner.
+4. **Claim.** The winner claims the prize straight from the vault, any time until the claim window ends (the organizer picks 1–90 days, 14 by default).
+5. **Refund.** After judging ends, the organizer can take back prizes that never got a winner. After the claim window ends, also prizes whose winner never claimed.
+6. **Close.** When every prize is claimed or refunded, the bounty closes and its storage deposit goes back to the organizer.
+
+## Features
+
+| Area | What you can do |
+|---|---|
+| **Explore** | Browse every bounty, filter by status (Open, Ending soon, Judging, Ended), and see each prize pool, your role and the next deadline. Below it, the latest news from around Solana. |
+| **Create a bounty** | A guided form with live checks: title, optional details link, judges, votes needed, prizes, timeline (entries close, judging ends, claim window) and a summary of when winners can claim. An optional builder makes a details file (longer description, hackathon info, judge names, prize labels, links) to download and host. |
+| **Bounty page** | Three tabs: **Prizes** (each prize's votes, winner, claim deadline and claim transaction), **Submissions** (every entry with its link and vote count), and **Judging** (for judges only). A side panel shows the prize pool, the three dates, the judges, the organizer and the escrow account. |
+| **Submit an entry** | Builders enter with a project name, link and short description. After judging ends they can close their entry to get its small storage deposit back. |
+| **Judging board** | Judges score each entry privately (Innovation, Execution, Impact, 1–5 each, saved only in their browser), compare scores side by side, then vote by dragging an entry onto a prize or picking it from a menu. A confirmation says exactly what the vote will do. |
+| **Claim** | Winners claim with one click while the claim window is open. |
+| **Refund** | One click refunds every prize that can be refunded right now, in one transaction. The page says which prizes still belong to their winners and until when. |
+| **Your bounties** | A to-do list across all bounties: prizes to vote on, prizes ready to claim (with the claim-by date), refunds available, plus the bounties you organize or judge and all your entries, including ones on bounties that have closed. |
+| **Markets** | Prices, 24-hour change and 7-day trends for SOL, USDC, USDT, BONK, JUP, BTC and ETH, a chart with 1H / 24H / 7D / 30D ranges, and a "What's my prize worth?" converter filled in with your prize. Prices from CoinGecko, refreshed every minute. |
+| **Wallets** | Any Solana wallet that supports Wallet Standard (Phantom, Solflare, Backpack, ...). |
+
+## How to use it
+
+Switch your wallet to **devnet** first, and get free devnet SOL from [faucet.solana.com](https://faucet.solana.com).
+
+### Organizers
+
+1. Click **Create bounty** and connect your wallet.
+2. Fill in the title, your judges' wallet addresses and the votes needed. The form suggests the smallest majority.
+3. Add up to 4 prizes in SOL. The form shows the total you'll lock.
+4. Set the timeline. Entries must close at least 10 minutes from now, judging can end at most a year away, and the claim window is 1–90 days (14 by default).
+5. Optional: open **Bounty details file**, fill it in, download the JSON, host it (IPFS, Arweave or any https host) and paste its link into **Details link**.
+6. Click **Lock prizes and create** and approve in your wallet. Share the bounty link with builders and judges.
+7. After judging ends, open the bounty (or **Your bounties → Refund available**) and click **Refund** for anything that can be refunded.
+
+### Builders
+
+1. Open the bounty and go to the **Submissions** tab.
+2. Click **Submit entry**, add your project name, a link (https:// or ipfs://) and a short description, and approve in your wallet. Use the wallet that should receive the prize.
+3. Follow your entry's votes on the same tab. If you win, the prize appears in **Your bounties → Ready to claim**.
+4. Click **Claim** before the claim window ends.
+5. After judging ends, close your entry from **Your bounties → Your entries** to get its deposit back.
+
+### Judges
+
+1. Connect the wallet the organizer added as a judge. **Your bounties → Needs your vote** lists every prize waiting for you.
+2. On the bounty page, open the **Judging** tab. Score the entries if you like (only you can see your scores), and use **Compare scores** to rank them.
+3. Drag an entry onto a prize, or use **Vote as...**. Read the confirmation and approve in your wallet. Votes are final.
+
+### Everyone
+
+- **Explore** and every bounty page work without a wallet.
+- **Markets** works without a wallet; the prize converter fills itself in when your wallet has a prize to claim.
+
+## Rules the program enforces
+
+These are checked by the on-chain program itself, so neither the website nor the organizer can get around them.
+
+| Rule | Detail |
+|---|---|
+| Fully funded | Creating a bounty and locking its whole prize pool happen in one transaction. There's no "add money later". |
+| Organizer can't steer the result | The organizer can't be a judge, can't vote, can't pick or change a winner, and can't take money out before the deadline. |
+| Judges | 1–5 judges, no duplicates. The votes needed must be more than half of the judges, so two groups can never both pick a winner. |
+| Votes | Only judges, only until judging ends, one vote per judge per prize, and votes can't be changed. |
+| Valid winners | A winner can't be the organizer, a judge, the zero address or the bounty's own accounts. The same person may win several prizes. |
+| Automatic winners | A prize's winner is set the moment a candidate reaches the votes needed. |
+| Claims | Only the winner, only once, until the claim window ends. |
+| Refunds | Only the organizer. Prizes with no winner: after judging ends. Prizes whose winner didn't claim: after the claim window ends. A claimed prize is never refundable. |
+| Entries | Before entries close, one per wallet per bounty, never from the organizer or a judge. Name ≤ 50 bytes, link ≤ 100 bytes, description ≤ 280 bytes. |
+| Limits | Title ≤ 50 bytes, details link ≤ 100 bytes, up to 4 prizes of at least 0.001 SOL each, deadline at most 365 days away. |
+| No admin | There is no admin key, no override and no emergency withdrawal in the program. |
+
+## Try it in five minutes (for judges)
+
+1. Install Phantom or Solflare, switch it to **devnet**, and get devnet SOL from [faucet.solana.com](https://faucet.solana.com).
+2. Open [open-bounty-ten.vercel.app](https://open-bounty-ten.vercel.app) and connect the wallet.
+3. **As a builder:** open any bounty that's still open, go to **Submissions** and submit an entry.
+4. **As an organizer:** create a bounty with a 0.01 SOL prize, and use a second wallet of yours as the only judge (1 of 1 vote needed). Set entries to close in about 11 minutes and judging to end soon after.
+5. **As a judge:** switch to that second wallet, open the **Judging** tab and vote for an entry. It wins immediately.
+6. **As the winner:** switch to the winning wallet and click **Claim**. The prize shows "Claimed" with a link to the transaction.
+7. **Refunds:** create another bounty, let judging end without votes, then click **Refund** as the organizer. The bounty closes and the SOL comes back.
+
+Every step can be checked on [Solana Explorer](https://explorer.solana.com/address/HTvHgRG4uHnj1KQeynNXsKEvBE3oqsc9TxRaGTgqgEk4?cluster=devnet).
 
 ## Deployment
 
 | What | Value |
-| ---- | ----- |
-| Program ID (devnet) | [`HTvHgRG4uHnj1KQeynNXsKEvBE3oqsc9TxRaGTgqgEk4`](https://explorer.solana.com/address/HTvHgRG4uHnj1KQeynNXsKEvBE3oqsc9TxRaGTgqgEk4?cluster=devnet) |
-| ProgramData account | `FheYHSZ3qgeCyTVy2GkhYty3BqEKG4NG1Y8jusnCKaBH` |
-| Upgrade authority | `Ad5NzuNtFGG5GfWkSA4fkF3yViQiefv96BeESSMURwqk` (the OpenBounty deployer; moving to a multisig, see [Devnet](#devnet)) |
-| On-chain IDL (Program Metadata) | `C3R2fiQ3EHwZHUSCPwWcAXrsVDGF67WSjmDQVwJqerFq`, identical to [`idl/openbounty_v2.json`](idl/openbounty_v2.json) |
-| Website (devnet) | https://open-bounty-ten.vercel.app (Vercel project root: `offchain/`) |
-| Mainnet | Not deployed |
+|---|---|
+| Network | Solana devnet |
+| Website | [open-bounty-ten.vercel.app](https://open-bounty-ten.vercel.app) |
+| Program ID | [`HTvHgRG4uHnj1KQeynNXsKEvBE3oqsc9TxRaGTgqgEk4`](https://explorer.solana.com/address/HTvHgRG4uHnj1KQeynNXsKEvBE3oqsc9TxRaGTgqgEk4?cluster=devnet) |
+| Program name | `openbounty_v2` |
+| ProgramData account | [`FheYHSZ3qgeCyTVy2GkhYty3BqEKG4NG1Y8jusnCKaBH`](https://explorer.solana.com/address/FheYHSZ3qgeCyTVy2GkhYty3BqEKG4NG1Y8jusnCKaBH?cluster=devnet) (holds the program's code) |
+| Upgrade authority | [`Ad5NzuNtFGG5GfWkSA4fkF3yViQiefv96BeESSMURwqk`](https://explorer.solana.com/address/Ad5NzuNtFGG5GfWkSA4fkF3yViQiefv96BeESSMURwqk?cluster=devnet), the project's deployer key for now; moving to a multisig (see [Roadmap](#roadmap)) |
+| Program interface (IDL) | published on-chain at [`C3R2fiQ3EHwZHUSCPwWcAXrsVDGF67WSjmDQVwJqerFq`](https://explorer.solana.com/address/C3R2fiQ3EHwZHUSCPwWcAXrsVDGF67WSjmDQVwJqerFq?cluster=devnet) (Program Metadata), identical to `idl/openbounty_v2.json` in this repo |
+| Mainnet | not deployed |
 
-The same ID is set in `declare_id!` ([`lib.rs`](programs/openbounty_v2/src/lib.rs)) and in
-`Anchor.toml` (`[programs.localnet]` and `[programs.devnet]`). The frontend reads it from the
-generated client (`OPENBOUNTY_V2_PROGRAM_ADDRESS`).
-
-### RPC endpoints
-
-The project uses three separate devnet RPC keys (Helius). Each has one job and
-lives in one place, and none of them is in the repo.
-
-| # | Used for | Where it lives | Read by | Protection |
-| - | -------- | -------------- | ------- | ---------- |
-| 1 | Deploying and upgrading the program, `yarn seed:devnet`, `solana` CLI commands | `~/.config/openbounty/solana-cli.yml` (`json_rpc_url`), outside the repo | `scripts/deploy-devnet.sh`, `scripts/seed-devnet.ts`, `solana -C ~/.config/openbounty/solana-cli.yml …` | A real secret: only on the owner's machine |
-| 2 | The live website | Vercel → Environment Variables → `NEXT_PUBLIC_SOLANA_RPC_URL` (Production) | The browser on `open-bounty-ten.vercel.app` | Helius **Access Control → Allowed Domains**: `open-bounty-ten.vercel.app` |
-| 3 | Running the website locally | `offchain/.env.local` → `NEXT_PUBLIC_SOLANA_RPC_URL` (gitignored) | The browser on `localhost` | Separate key, so its use never counts against the website's |
-
-- **Key 1 must never go into Vercel, `.env.local` or any `NEXT_PUBLIC_` variable.**
-  `NEXT_PUBLIC_` values are built into the website's JavaScript, so keys 2 and
-  3 are public by design.
-- **The domain lock stops other websites, not scripts.** Helius checks the
-  request's `Origin` header, which a browser sets honestly and a script can
-  fake. That's enough for a devnet key; before mainnet, use Helius Secure
-  URLs (paid) or a server-side proxy.
-- **Changing key 2:** update the Vercel variable, then redeploy (the value is
-  fixed at build time). Changing key 3: edit `.env.local`, then restart
-  `npm run dev`.
-- **Without a key** the website falls back to the public
-  `https://api.devnet.solana.com`, which works but is slow and rate-limited.
-- The website does not use the deployer's RPC, and the scripts don't use the
-  website's.
-
-## Names
-
-| What                                   | Name            |
-| -------------------------------------- | --------------- |
-| Project / repository                   | `openbounty`    |
-| On-chain program (crate, module, IDL)  | `openbounty_v2` |
-
-The difference is intentional. The program is always `openbounty_v2`.
-
-## Trust model
-
-These are protocol invariants, and the program enforces them. No off-chain
-component is trusted to enforce them.
-
-- **Fully backed bounties.** Creating an escrow and funding the whole prize pool
-  happen in one instruction. An unfunded or partly funded escrow cannot exist,
-  and there is no "deposit later" instruction.
-- **The organizer doesn't pick winners.** The organizer creates and funds the
-  escrow but cannot vote, pick or override winners, change a finalized winner,
-  or withdraw prize funds before the deadline.
-- **Judges vote on-chain.** Each judge signs their own vote. There is no
-  off-chain signature collection, vote aggregation or relayer.
-- **Winners are finalized by the program.** A tier finalizes when a candidate
-  reaches `vote_threshold` votes.
-- **Winners claim without approval.** The finalized winner claims directly.
-  No operator has to approve or release the payout.
-- **Winners have a claim window.** A finalized prize belongs to its winner
-  until `claim_deadline` (the deadline plus a window of 1–90 days the
-  organizer sets at creation). Winners can claim before the deadline too.
-- **Refunds only after the deadline.** After `deadline`, the organizer can
-  reclaim tiers that never got a winner. A winner's unclaimed tier becomes
-  refundable only after `claim_deadline`.
-- **No admin.** There is no superuser, emergency withdrawal or upgrade-time
-  override in the protocol logic.
-- **No stored roles.** Roles come from escrow state at instruction time:
-  organizer = `escrow.organizer`, judge = signer in `escrow.judges`,
-  winner = `prize_tiers[i].winner` of a finalized tier.
-
-## Instructions
-
-| Instruction          | Signer    | Purpose |
-| -------------------- | --------- | ------- |
-| `initialize_escrow`  | organizer | Creates the escrow and funds the vault with the full prize pool in one step. |
-| `vote_winner`        | judge     | Records a judge's vote for a candidate on one tier and finalizes the tier at the threshold. |
-| `claim_prize`        | winner    | Pays a finalized tier's prize to its winner. Closes the escrow once every tier is settled. |
-| `refund_unclaimed`   | organizer | Returns one tier's amount to the organizer: a tier with no winner after `deadline`, or an unclaimed winner's tier after `claim_deadline`. Several fit in one transaction. Closes the escrow once every tier is settled. |
-| `submit_entry`       | builder   | Records a builder's entry (name, link, description) before `submissions_deadline`. Not the organizer or a judge; one per wallet. |
-| `close_entry`        | builder   | After `deadline`, closes the builder's entry and returns its rent. Works even after the escrow has closed. |
-
-Every state change emits an Anchor event: `EscrowInitialized`, `VoteCast`,
-`TierFinalized`, `PrizeClaimed`, `TierRefunded`, `EscrowClosed`,
-`EntrySubmitted`, `EntryClosed`.
-
-## Accounts and PDAs
-
-| Account | Seeds                              | Owner          | Holds |
-| ------- | ---------------------------------- | -------------- | ----- |
-| Escrow  | `["escrow", organizer, nonce: u8]` | `openbounty_v2` | Bounty state (below) |
-| Vault   | `["vault", organizer, nonce: u8]`  | System program | Prize lamports only (no data). The program moves funds by signing with the vault's PDA seeds. |
-| Submission | `["submission", escrow, escrow.created_at: i64 LE, submitter]` | `openbounty_v2` | One builder's entry. `created_at` is in the seeds because a closed bounty's address can be reused by a new bounty with the same nonce; old entries must not block or show up in the new one. |
-
-The `nonce` lets one organizer run up to 256 escrows at the same time. Both
-bumps are stored in the escrow.
+## How it's built
 
 ```text
-Escrow
-├── organizer        Pubkey        (at byte offset 8, usable in memcmp filters)
-├── nonce            u8
-├── bump             u8
-├── vault_bump       u8
-├── vote_threshold   u8
-├── created_at           i64       unix seconds
-├── submissions_deadline i64       entries close (≤ deadline)
-├── deadline             i64       voting closes
-├── claim_deadline       i64       deadline + claim window
-├── title            String        ≤ MAX_TITLE_LENGTH bytes
-├── metadata_uri     String        ≤ MAX_METADATA_URI_LENGTH bytes
-├── judges           Vec<Pubkey>   ≤ MAX_JUDGES
-└── prize_tiers      Vec<PrizeTier> ≤ MAX_PRIZE_TIERS
-    ├── amount       u64           lamports
-    ├── winner       Option<Pubkey>
-    ├── claimed      bool
-    ├── refunded     bool
-    └── votes        Vec<Vote>     ≤ MAX_JUDGES
-        ├── judge     Pubkey
-        └── candidate Pubkey
+Browser (Next.js website) ──► Solana devnet RPC ──► openbounty_v2 program
+        │                                              ├── Escrow account (one per bounty: rules, prizes, votes)
+        │                                              ├── Vault (holds the prize SOL; only the program can move it)
+        │                                              └── Submission account (one per entry)
+        └──► CoinGecko + Solana news feed (Markets page and news only)
 ```
 
-The escrow is allocated once at its worst-case size, 1,870 bytes, and is never
-resized. A compile-time assertion keeps it under the 10 KiB limit for `init`,
-and a unit test checks the size against the protocol limits.
+- **On-chain program:** Rust with the Anchor framework (Anchor 1.2, Solana 4.1). Six instructions: `initialize_escrow`, `vote_winner`, `claim_prize`, `refund_unclaimed`, `submit_entry` and `close_entry`. Every state change emits an event.
+- **Accounts:** an escrow and a vault per bounty, derived from the organizer and a counter, so one organizer can run up to 256 bounties at a time. The vault holds only the prize money.
+- **Website:** Next.js 16 and React 19 with Tailwind CSS. It talks to the program through `@solana/kit` and a client generated from the program's interface. Wallets connect through Wallet Standard.
+- **No backend.** The website reads accounts straight from Solana and asks your wallet to sign. There is no server or database holding bounty data, so the website can't change any result. Market prices and news are read by your browser from CoinGecko and Solana's public news feed.
+- **Repository layout:**
 
-### Protocol limits
+  ```text
+  programs/openbounty_v2/   the on-chain program (Rust)
+  tests/                    integration tests (TypeScript)
+  idl/                      the program's interface, shared with the website
+  scripts/                  test runner, devnet deploy, devnet sample data
+  offchain/                 the website (Next.js)
+  ```
 
-All limits are defined in
-[`programs/openbounty_v2/src/constants.rs`](programs/openbounty_v2/src/constants.rs):
+## Testing and checks
 
-| Constant                  | Value |
-| ------------------------- | ----- |
-| `MAX_JUDGES`              | 5     |
-| `MAX_PRIZE_TIERS`         | 4     |
-| `MAX_TITLE_LENGTH`        | 50    |
-| `MAX_METADATA_URI_LENGTH` | 100   |
-| `MIN_PRIZE_AMOUNT`        | 1,000,000 lamports (0.001 SOL) |
-| `MAX_DEADLINE_AHEAD`      | 365 days |
-| `MIN_CLAIM_WINDOW` / `MAX_CLAIM_WINDOW` | 1 day / 90 days (the frontend defaults to 14) |
-| Entry name / link / description | 50 / 100 / 280 bytes |
+- **Program:** 51 integration tests on a local Solana network (Surfpool). They cover every rule above and every error, and use time travel to check the entry deadline, the judging deadline and the claim window. They also run on Solana's standard test validator, where the 14 time-travel tests are skipped. Rust unit tests check the account sizes.
+- **Website:** 43 unit tests for the rules it checks before asking you to sign, plus type checking, linting and a production build.
+- **On devnet, through the website:** create, enter, vote (winner picked automatically), claim (bounty closes), refund after the deadline (bounty closes), and closing an entry after its bounty closed, all done with real devnet transactions, at desktop and phone widths.
 
-Each prize tier must also be at least the rent-exempt minimum for a data-less
-account (650,240 lamports today). That way paying a brand-new wallet can never
-fail on rent, even if rent rises. `MIN_PRIZE_AMOUNT` and the seeds are exported
-in the IDL; the `usize` limits aren't (see
-[Current limitations](#current-limitations)).
+## Run it yourself
 
-## Repository layout
-
-```text
-.
-├── programs/openbounty_v2/src/
-│   ├── lib.rs                 # entry points only: dispatch to instructions/
-│   ├── constants.rs           # seeds and protocol limits
-│   ├── error.rs               # OpenBountyError
-│   ├── events.rs              # Anchor events
-│   ├── state/                 # Escrow, PrizeTier, Vote, Submission (+ sizing tests)
-│   └── instructions/          # one file per instruction (+ vault.rs: payouts and closing)
-├── tests/
-│   ├── openbounty_v2.test.ts  # integration tests (run by `yarn test`)
-│   └── helpers/               # PDA derivation, chain clock, Surfpool time travel
-├── idl/openbounty_v2.json     # the IDL, refreshed by every build and committed (for the frontend)
-├── offchain/                 # the frontend (Next.js + Solana Kit); see offchain/README.md
-├── scripts/test-local.sh      # isolated local test run (see "Keys and wallets")
-├── scripts/seed-devnet.ts     # devnet end-to-end check + sample bounties (`yarn seed:devnet`)
-├── Anchor.toml                # toolchain pins, program IDs, clusters, wallet, IDL copy, test guard
-├── Cargo.toml                 # Rust workspace
-├── rust-toolchain.toml        # host Rust toolchain (IDL build, cargo test)
-├── package.json / yarn.lock   # TypeScript test tooling
-└── tsconfig.json
-```
-
-## Toolchain
-
-Pinned in `Anchor.toml` `[toolchain]` and used for development and testing:
-
-| Component        | Version | Notes |
-| ---------------- | ------- | ----- |
-| Anchor CLI       | 1.2.0   | via `avm` |
-| `anchor-lang`    | =1.2.0  | exact pin; all `anchor-*` crates must match |
-| Solana CLI       | 4.1.2   | Agave; the version Anchor 1.2.0's CI tests against |
-| Platform tools   | v1.57   | Anchor 1.2.0 default for `anchor build` (SBPF v3) |
-| Host Rust        | 1.89.0  | `rust-toolchain.toml` (anchor-lang MSRV) |
-| Surfpool         | 1.5.0   | default local network for `anchor test` |
-| Node.js          | ≥ 20.18 | developed on 24.x |
-| Yarn             | 1.22.x  | `Anchor.toml` `package_manager` |
-| `@anchor-lang/core` | 1.2.0 | TS client; matches the CLI |
-| TypeScript       | ~6.0.3  | see note below |
-| mocha / ts-mocha / ts-node | 11.8 / 11.1 / 10.9 | |
-
-Compatibility notes:
-
-- **Solana CLI.** `avm` 1.2.0's built-in table still recommends Solana 3.1.10
-  for Anchor 1.2.0. Anchor's own CI and release image use 4.1.2, so the
-  project pins `solana_version = "4.1.2"`, and `avm` then resolves to that.
-- **TypeScript 7** (the native compiler) doesn't provide the compiler API that
-  ts-node needs, so tests stay on TypeScript 6.x.
-- **mocha 12** is outside ts-mocha 11's supported peer range, so mocha stays on
-  11.x. It installs with a deprecation warning for its transitive `glob@10`
-  (dev-only).
-- **SBPF v3.** Anchor 1.2.0 builds SBPF v3 by default. It is active on devnet.
-  For a cluster without it, override with `ANCHOR_BUILD_SBF_ARCH`.
-
-## Local development
-
-Prerequisites: Rust (rustup), [avm](https://www.anchor-lang.com/docs/installation)
-with Anchor 1.2.0, the Solana CLI, Surfpool, Node.js ≥ 20.18, and Yarn 1.x.
+**The website** (needs Node.js 20.18 or newer):
 
 ```bash
-avm install 1.2.0 && avm use 1.2.0
-avm solana install          # installs/activates the Solana version pinned in Anchor.toml
+git clone https://github.com/secur3shell-ship-it/OpenBounty.git
+cd OpenBounty/offchain
+npm install
+npm run dev            # http://localhost:3000, uses the public devnet RPC
+```
+
+Optional: create `offchain/.env.local` with `NEXT_PUBLIC_SOLANA_RPC_URL=<your devnet RPC URL>` for a faster RPC. Website checks: `npm run typecheck`, `npm run lint`, `npm test`, `npm run build`.
+
+**The program tests** (need Rust 1.89, Anchor CLI 1.2.0, Solana CLI 4.1.2, Surfpool 1.5 and Yarn):
+
+```bash
+cd OpenBounty
 yarn install
+solana-keygen new --no-bip39-passphrase -o /tmp/openbounty-test.json   # a throwaway wallet for the local network
+anchor keys sync                                                        # gives your local build its own program ID
+OPENBOUNTY_WALLET=/tmp/openbounty-test.json yarn test                   # builds, starts a local network, runs the tests
+cargo test -p openbounty_v2                                             # Rust unit tests
 ```
 
-Then create the OpenBounty wallet and CLI config once per machine (see
-[Keys and wallets](#keys-and-wallets)).
+`anchor keys sync` changes the program ID in your local copy only; don't commit that change.
 
-### Keys and wallets
+## Roadmap
 
-OpenBounty never uses `~/.config/solana/id.json` or the global Solana CLI
-config (`~/.config/solana/cli/config.yml`). Both belong to other work on the
-same machine. All OpenBounty keys live in `~/.config/openbounty/`, outside the
-repository:
+| Status | Item |
+|---|---|
+| ✅ Done | Fully funded bounties, on-chain entries, judge voting with automatic winners, claims with a claim window, rule-based refunds, closing and deposit returns |
+| ✅ Done | Website: Explore, Create (with the details-file builder), bounty page with Prizes / Submissions / Judging, Your bounties, Markets, news |
+| ✅ Done | Live on devnet with sample bounties |
+| Next | Security review of the program, and verifiable builds (anyone can check that the deployed program matches this code) |
+| Next | Upgrade authority moved from one key to a multisig (Squads) |
+| Later | Prizes in other tokens (USDC, USDT, BONK, JUP), and claiming a prize in a different token or on another chain |
+| Later | History of finished bounties (closed bounties currently disappear from the website) |
+| Later | Live, real-time market prices |
+| Mainnet | After an external audit: deploy under a multisig with a time lock, then make the program unchangeable |
 
-| Key or file | Location | Role |
-| ----------- | -------- | ---- |
-| Deployer wallet | `~/.config/openbounty/keys/deployer.json` | `[provider] wallet` in `Anchor.toml`. Pays for local tests and deployments, and is the program's upgrade authority on devnet |
-| Solana CLI config | `~/.config/openbounty/solana-cli.yml` | Points the `solana` CLI at our private devnet RPC (its URL holds an API key, so it's never committed) and the deployer. Pass it with `-C` on every OpenBounty `solana` command. `yarn deploy:devnet` reads the RPC URL from it |
-| Program keypair | `target/deploy/openbounty_v2-keypair.json` | Defines the program ID (see [Program ID](#program-id)). Gitignored; keep a backup |
+## FAQ
 
-One-time setup per machine:
+**Is this real money?**
+Not yet. Everything runs on Solana devnet, where SOL is free from the faucet.
 
-```bash
-mkdir -p ~/.config/openbounty/keys && chmod 700 ~/.config/openbounty ~/.config/openbounty/keys
-solana-keygen new -o ~/.config/openbounty/keys/deployer.json   # write down the seed phrase
-solana config set -C ~/.config/openbounty/solana-cli.yml \
-  --url devnet --keypair ~/.config/openbounty/keys/deployer.json --commitment confirmed
-```
+**Can the organizer run off with the prize?**
+No. The prize pool is in a vault only the program controls. The organizer can take back only prizes the rules allow, and only after the deadlines.
 
-Rules:
+**Can the organizer pick the winner?**
+No. Only the judges vote, and the program picks the winner when enough of them agree. The organizer can't be a judge.
 
-- Never run `solana config set` without `-C ~/.config/openbounty/solana-cli.yml`.
-  Without it, the command edits the global config.
-- Run OpenBounty `solana` commands as
-  `solana -C ~/.config/openbounty/solana-cli.yml <command>`.
-- Keep any new authority or key under `~/.config/openbounty/keys/`, never in
-  the repository.
+**What if a judge disappears?**
+Votes needed are more than half of the judges, not all of them. If a prize never reaches the votes needed by the end of judging, it has no winner and the organizer can refund it.
 
-### Program ID
+**What if I win but miss the claim window?**
+The prize is yours until the claim window ends (14 days by default, shown on the bounty page and in Your bounties). After that, the organizer may refund it.
 
-The program ID, `HTvHgRG4uHnj1KQeynNXsKEvBE3oqsc9TxRaGTgqgEk4`, is the public key of
-`target/deploy/openbounty_v2-keypair.json`.
-That keypair is the program's deploy key: it is gitignored and must never be
-committed. `anchor build` creates a new one if none exists, and warns when it
-doesn't match `declare_id!`.
+**Who can see my scores as a judge?**
+Only you. Scores are saved in your browser and never sent anywhere. Only your votes are public.
 
-On a fresh clone, do one of these before running tests:
+**Why did a bounty disappear?**
+When every prize is claimed or refunded, the program closes the bounty and returns its storage deposit. A history of finished bounties is on the roadmap.
 
-- **Use the existing program ID:** get the keypair from its owner through a
-  secure channel and put it at that path.
-- **Use your own ID:** run `anchor keys sync`. It creates a keypair if needed
-  and rewrites `declare_id!` and `Anchor.toml` to match. Don't commit that
-  rewrite unless the project is changing its program ID.
+**What does it cost to use?**
+Normal Solana transaction fees, plus small refundable storage deposits: about 0.010 SOL for a bounty (returned to the organizer when it closes) and about 0.0034 SOL for an entry (returned when the builder closes it).
 
-### Build
-
-```bash
-anchor build
-```
-
-Produces `target/deploy/openbounty_v2.so`, the IDL at
-`target/idl/openbounty_v2.json`, and TS types in `target/types/`.
-
-### Test
-
-```bash
-yarn test                    # build, start Surfpool (offline) funded only for the deployer, deploy, run tests
-yarn test:legacy             # same, on solana-test-validator
-cargo test -p openbounty_v2  # Rust unit tests (account sizing)
-yarn typecheck               # type-check the TS tests
-```
-
-Don't run plain `anchor test`. Anchor starts Surfpool with its default airdrop
-keypair, `~/.config/solana/id.json`, and makes that key the local upgrade
-authority, and Anchor 1.2.0 has no setting to change this. A `pre-test` hook in
-`Anchor.toml` stops plain `anchor test` before any validator starts.
-`yarn test` (`scripts/test-local.sh`) starts Surfpool itself with the
-deployer wallet. `yarn test:legacy` funds the deployer through
-`solana-test-validator --mint`. Extra arguments go through to `anchor test`,
-e.g. `yarn test --skip-build`.
-
-The suites are every `tests/**/*.test.ts`. Put shared helpers in
-`tests/helpers/`. Deadline and claim-window tests move the network clock
-with Surfpool's `surfnet_timeTravel`; on `yarn test:legacy` (no time travel)
-they are skipped and reported as pending.
-
-## Devnet
-
-Cluster selection lives only in tooling config, never in program logic.
-`Anchor.toml` defaults to `localnet`, and `[programs.devnet]` holds the devnet
-program ID.
-
-```bash
-anchor build
-yarn deploy:devnet      # deploys, or upgrades in place; payer and upgrade authority: the deployer
-```
-
-`yarn deploy:devnet` runs [scripts/deploy-devnet.sh](scripts/deploy-devnet.sh):
-
-- It uses the RPC URL from `~/.config/openbounty/solana-cli.yml`. We use a
-  private Helius devnet endpoint, because the public
-  `https://api.devnet.solana.com` often drops account lookups. The URL
-  contains an API key, so it lives only in that file, outside the repo.
-- Without that file, the script falls back to the public endpoint.
-- It refuses to run against anything that isn't devnet.
-
-After an upgrade, `yarn seed:devnet` runs the whole flow on devnet (create,
-enter, vote, claim, close) and leaves sample bounties for the frontend. Its
-sample judge and builder keys live in `~/.config/openbounty/keys/devnet-*.json`.
-
-To use your own endpoint:
-
-```bash
-solana config set -C ~/.config/openbounty/solana-cli.yml --url "<your devnet RPC URL>"
-```
-
-The script runs `anchor program deploy` (Anchor 1.2 deprecates the older
-`anchor deploy`). The first deploy needs the program keypair described in
-[Program ID](#program-id). Upgrades need only the upgrade authority.
-Deploying also publishes the IDL on-chain through Program Metadata (skip this
-with `--no-idl`). To fund the deployer, run
-`solana -C ~/.config/openbounty/solana-cli.yml airdrop 1`, or use
-https://faucet.solana.com if the airdrop is rate-limited.
-
-Upgrade authority: today the deployer key alone can upgrade the program on
-devnet. The decided path (2026-10-06) removes that single point of trust:
-a Squads multisig with a time lock becomes the upgrade authority (devnet
-first), builds become verifiable (`solana-verify`), and after an audit the
-program is made immutable (`--final`). See `doc/plan_v2.md`.
-
-## Integration boundary (IDL)
-
-The frontend uses **`idl/openbounty_v2.json`**. It lists the instructions,
-accounts, types, errors and seed constants, plus the PDA seeds for `escrow`
-and `vault`, so clients can derive both addresses.
-
-How the IDL reaches the frontend after every build:
-
-1. Every `anchor build` (and every `yarn test`, which builds first) writes the
-   IDL to `target/idl/` and also to `idl/openbounty_v2.json`, because of
-   `[workspace] idls = "idl"` in `Anchor.toml`.
-2. `idl/` is committed. When the program's interface changes, the IDL change
-   is committed together with the program change.
-3. The frontend runs `git pull` and regenerates its client from
-   `idl/openbounty_v2.json`. Git history shows exactly which program commit
-   each IDL came from.
-
-Error codes start at 6000. New variants are only appended, never reordered,
-because clients match on the codes. The program keypair is never shared.
-
-## Current limitations
-
-- **SOL prizes only.** Multi-token prizes, claiming in another token and
-  cross-chain payouts are phase 2 (`doc/plan_v2.md`).
-- **Closed bounties disappear.** The program closes a bounty once every prize
-  is claimed or refunded, so the frontend (which reads accounts directly, with
-  no indexer) stops listing it. A read-only indexer is planned after v1.
-- **Address reuse edge case.** Entries are tied to a bounty by its
-  `created_at`. Recreating a bounty at the same address within the same
-  second as closing the old one would mix their entries; the frontend never
-  does this.
-- **Limits aren't all in the IDL.** The size limits are `usize`, as account
-  sizing needs, and `#[constant]` can't export `usize`. Clients mirror
-  `constants.rs`.
-- **Upgrade authority is still a single key** until the multisig move above.
-- **No backend at all.** Market prices (CoinGecko) and news (Solana's RSS)
-  are fetched by the browser. A real-time read-only feed backend is designed
-  (`offchain/docs/features/markets-feed.md`) but parked until the owner says
-  otherwise.
+**Can the program be changed?**
+On devnet it can still be upgraded, by the project's deployer key. Moving that power to a multisig is next on the roadmap, and on mainnet the program will be made unchangeable after an audit.

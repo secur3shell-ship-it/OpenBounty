@@ -40,3 +40,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Private docs and agent instructions (local only; the public overview is the root README.md)
+/docs/
+/README.md
+/AGENTS.md
+/CLAUDE.md
