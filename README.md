@@ -235,12 +235,20 @@ cargo test -p openbounty_v2                                             # Rust u
 | ✅ Done | Website: Explore, Create (with the details-file builder), bounty page with Prizes / Submissions / Judging, Your bounties, Markets, news |
 | ✅ Done | Live on devnet with sample bounties |
 | ✅ Done | Internal security review of the program, with fixes and tests; checks on every push (GitHub Actions) |
-| Next | Verifiable builds (anyone can check that the deployed program matches this code) |
-| Next | Upgrade authority moved from one key to a multisig (Squads) |
-| Later | Prizes in other tokens (USDC, USDT, BONK, JUP), and claiming a prize in a different token or on another chain |
-| Later | History of finished bounties (closed bounties currently disappear from the website) |
-| Later | Live, real-time market prices |
-| Mainnet | After an external audit: deploy under a multisig with a time lock, then make the program unchangeable |
+
+### Next goals
+
+Each goal is removed from this list once it ships.
+
+1. **Verifiable build.** Build the program in a standard, reproducible environment, so anyone can check that the code deployed on devnet matches this repository.
+2. **Past bounties on Explore.** Closed bounties disappear from the website today. A "Past" list will show finished bounties, their winners and their payouts.
+3. **Prizes in other tokens and on other chains (phase 2):**
+   - prizes in USDC, USDT, BONK and JUP as well as SOL;
+   - winners claim in the token of their choice;
+   - USDC winners can receive their prize on another chain.
+4. **Real-time markets.** Today the browser fetches prices every minute. A small read-only service will push live prices and news instead.
+5. **Multisig upgrade authority.** Move the power to upgrade the program from one key to a multisig (Squads).
+6. **Mainnet.** After an external audit: deploy under a multisig with a time lock, then make the program unchangeable after a quiet period.
 
 ## FAQ
 
