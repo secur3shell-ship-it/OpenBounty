@@ -57,7 +57,10 @@ pub fn handle_submit_entry(
         submitter != escrow.organizer,
         OpenBountyError::OrganizerCannotSubmit
     );
-    require!(!escrow.is_judge(&submitter), OpenBountyError::JudgeCannotSubmit);
+    require!(
+        !escrow.is_judge(&submitter),
+        OpenBountyError::JudgeCannotSubmit
+    );
     require!(
         !title.is_empty() && title.len() <= MAX_ENTRY_TITLE_LENGTH,
         OpenBountyError::InvalidEntryTitle

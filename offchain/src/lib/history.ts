@@ -1,11 +1,17 @@
 import { getBase64Encoder, type Address, type Signature } from '@solana/kit';
-import { getPrizeClaimedEventDecoder, PRIZE_CLAIMED_EVENT_DISCRIMINATOR } from '@/generated/openbounty';
+import {
+  getPrizeClaimedEventDecoder,
+  OPENBOUNTY_V2_PROGRAM_ADDRESS,
+  PRIZE_CLAIMED_EVENT_DISCRIMINATOR,
+} from '@/generated/openbounty';
 import { client } from '@/lib/client';
+import { programDataLogs } from '@/utils/events';
 
 // Reads a bounty's past transactions straight from the RPC (no indexer): the
 // program's Anchor events are in each transaction's logs as "Program data: <base64>".
+// Anyone can add such a line to a transaction that touches the escrow, so only
+// lines our own program wrote count (see programDataLogs).
 
-const EVENT_PREFIX = 'Program data: ';
 const MAX_SIGNATURES = 100;
 const base64 = getBase64Encoder();
 
@@ -33,9 +39,8 @@ export async function findClaimSignatures(
     const tx = await client.rpc
       .getTransaction(signature, { encoding: 'json', maxSupportedTransactionVersion: 0, commitment: 'confirmed' })
       .send();
-    for (const line of tx?.meta?.logMessages ?? []) {
-      if (!line.startsWith(EVENT_PREFIX)) continue;
-      const bytes = base64.encode(line.slice(EVENT_PREFIX.length)) as Uint8Array;
+    for (const payload of programDataLogs(tx?.meta?.logMessages ?? [], OPENBOUNTY_V2_PROGRAM_ADDRESS)) {
+      const bytes = base64.encode(payload) as Uint8Array;
       if (!isPrizeClaimed(bytes)) continue;
       const event = getPrizeClaimedEventDecoder().decode(bytes);
       if (event.escrow === escrow && wantedTiers.includes(event.tierIndex)) found.set(event.tierIndex, signature);

@@ -419,6 +419,31 @@ describe("openbounty_v2", () => {
     it("rejects a second claim", async () => {
       await expectError(claim(main, builders[0], 0), "PrizeAlreadyClaimed");
     });
+
+    it("can't be blocked by the organizer handing their wallet to another program", async () => {
+      // A wallet can reassign itself to any program. If claims required the
+      // organizer to be system-owned, an organizer could do this to make every
+      // claim fail, wait out the claim window and refund the prizes.
+      const [rogue] = await fundedKeypairs(provider, 1, 0.1 * SOL);
+      const b = await create(params({ judges: [judges[0].publicKey], voteThreshold: 1, prizeAmounts: [new BN(0.01 * SOL)] }), rogue);
+      await vote(b, judges[0], 0, outsider.publicKey);
+      const theirProgram = web3.Keypair.generate().publicKey;
+      await provider.sendAndConfirm(
+        new web3.Transaction().add(web3.SystemProgram.assign({ accountPubkey: rogue.publicKey, programId: theirProgram })),
+        [rogue]
+      );
+
+      const escrowRent = await balance(provider, b.escrow);
+      const before = await balance(provider, rogue.publicKey);
+      await program.methods
+        .claimPrize(0)
+        .accountsPartial({ winner: outsider.publicKey, escrow: b.escrow, vault: b.vault, organizer: rogue.publicKey })
+        .preInstructions([unique()])
+        .signers([outsider])
+        .rpc();
+      assert.equal(await provider.connection.getAccountInfo(b.escrow), null);
+      assert.equal((await balance(provider, rogue.publicKey)) - before, escrowRent, "escrow rent still goes to the organizer");
+    });
   });
 
   describe("refund_unclaimed (before the deadline)", () => {

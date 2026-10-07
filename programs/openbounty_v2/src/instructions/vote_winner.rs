@@ -30,7 +30,10 @@ pub fn handle_vote_winner(
     let escrow = &mut ctx.accounts.escrow;
     let now = Clock::get()?.unix_timestamp;
 
-    require!(judge != escrow.organizer, OpenBountyError::OrganizerCannotVote);
+    require!(
+        judge != escrow.organizer,
+        OpenBountyError::OrganizerCannotVote
+    );
     require!(escrow.is_judge(&judge), OpenBountyError::UnauthorizedJudge);
     // Q2: voting closes at the deadline.
     require!(now <= escrow.deadline, OpenBountyError::VotingClosed);
@@ -77,7 +80,11 @@ pub fn handle_vote_winner(
         candidate,
     });
 
-    let candidate_votes = tier.votes.iter().filter(|v| v.candidate == candidate).count();
+    let candidate_votes = tier
+        .votes
+        .iter()
+        .filter(|v| v.candidate == candidate)
+        .count();
     if candidate_votes >= threshold {
         tier.winner = Some(candidate);
         emit!(TierFinalized {

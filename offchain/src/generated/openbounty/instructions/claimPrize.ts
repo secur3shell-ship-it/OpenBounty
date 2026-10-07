@@ -132,7 +132,10 @@ export type ClaimPrizeInput<
   vault: TAccountVault;
   /**
    * Not a signer. Receives the escrow rent (and any vault remainder) if
-   * this claim settles the last open tier.
+   * this claim settles the last open tier. Its owner is deliberately not
+   * checked: a wallet can reassign itself to another program, and an owner
+   * check would let the organizer block every claim that way, then refund
+   * the prizes after the window.
    */
   organizer: TAccountOrganizer;
   systemProgram?: TAccountSystemProgram;
@@ -264,7 +267,10 @@ export type ParsedClaimPrizeInstruction<
     vault: TAccountMetas[2];
     /**
      * Not a signer. Receives the escrow rent (and any vault remainder) if
-     * this claim settles the last open tier.
+     * this claim settles the last open tier. Its owner is deliberately not
+     * checked: a wallet can reassign itself to another program, and an owner
+     * check would let the organizer block every claim that way, then refund
+     * the prizes after the window.
      */
     organizer: TAccountMetas[3];
     systemProgram: TAccountMetas[4];

@@ -16,6 +16,7 @@ node_modules
 id.json
 .env
 .env.*
+!.env.example
 
 # Private docs: only the root README.md is public. Developer docs live in doc/ and
 # offchain/docs/; agent instructions live in .claude/ and offchain/AGENTS.md, CLAUDE.md.

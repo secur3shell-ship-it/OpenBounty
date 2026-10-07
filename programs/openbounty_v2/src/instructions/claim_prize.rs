@@ -30,9 +30,13 @@ pub struct ClaimPrize<'info> {
     pub vault: SystemAccount<'info>,
 
     /// Not a signer. Receives the escrow rent (and any vault remainder) if
-    /// this claim settles the last open tier.
+    /// this claim settles the last open tier. Its owner is deliberately not
+    /// checked: a wallet can reassign itself to another program, and an owner
+    /// check would let the organizer block every claim that way, then refund
+    /// the prizes after the window.
+    /// CHECK: `has_one` on the escrow pins the address; it is only credited.
     #[account(mut)]
-    pub organizer: SystemAccount<'info>,
+    pub organizer: UncheckedAccount<'info>,
 
     pub system_program: Program<'info, System>,
 }

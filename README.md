@@ -1,8 +1,13 @@
 # OpenBounty
 
+[![CI](https://github.com/secur3shell-ship-it/OpenBounty/actions/workflows/ci.yml/badge.svg)](https://github.com/secur3shell-ship-it/OpenBounty/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 **Trustless prize bounties on Solana.** An organizer locks the whole prize pool on-chain when the bounty is created. Builders submit their entries on-chain, judges vote on-chain, and winners claim their prize directly. Nobody (not even the organizer) can change the result or take the money once it's locked.
 
 **Try it:** [open-bounty-ten.vercel.app](https://open-bounty-ten.vercel.app) (Solana **devnet**, no real money)
+
+Built for [Colosseum's Crypto World's Fair](https://colosseum.com/worldsfair) hackathon (Solana track).
 
 ---
 
@@ -11,6 +16,7 @@
 - [Why OpenBounty](#why-openbounty)
 - [How it works](#how-it-works)
 - [Features](#features)
+- [Screenshots](#screenshots)
 - [How to use it](#how-to-use-it)
 - [Rules the program enforces](#rules-the-program-enforces)
 - [Try it in five minutes (for judges)](#try-it-in-five-minutes-for-judges)
@@ -18,8 +24,10 @@
 - [How it's built](#how-its-built)
 - [Testing and checks](#testing-and-checks)
 - [Run it yourself](#run-it-yourself)
+- [Security](#security)
 - [Roadmap](#roadmap)
 - [FAQ](#faq)
+- [License](#license)
 
 ---
 
@@ -71,6 +79,14 @@ Every bounty has three dates, set by the organizer:
 | **Your bounties** | A to-do list across all bounties: prizes to vote on, prizes ready to claim (with the claim-by date), refunds available, plus the bounties you organize or judge and all your entries, including ones on bounties that have closed. |
 | **Markets** | Prices, 24-hour change and 7-day trends for SOL, USDC, USDT, BONK, JUP, BTC and ETH, a chart with 1H / 24H / 7D / 30D ranges, and a "What's my prize worth?" converter filled in with your prize. Prices from CoinGecko, refreshed every minute. |
 | **Wallets** | Any Solana wallet that supports Wallet Standard (Phantom, Solflare, Backpack, ...). |
+
+## Screenshots
+
+| Explore | A bounty |
+|---|---|
+| ![Explore page: open bounties with their prize pools and deadlines](assets/screenshots/explore.png) | ![Bounty page: prizes with a claimed winner and its claim transaction, dates and judges](assets/screenshots/bounty.png) |
+| **Create a bounty** | **Markets** |
+| ![Create form: title, details link, judges, votes needed, prizes](assets/screenshots/create.png) | ![Markets page: token prices, trends and the prize converter](assets/screenshots/markets.png) |
 
 ## How to use it
 
@@ -174,8 +190,9 @@ Browser (Next.js website) ──► Solana devnet RPC ──► openbounty_v2 pr
 
 ## Testing and checks
 
-- **Program:** 51 integration tests on a local Solana network (Surfpool). They cover every rule above and every error, and use time travel to check the entry deadline, the judging deadline and the claim window. They also run on Solana's standard test validator, where the 14 time-travel tests are skipped. Rust unit tests check the account sizes.
-- **Website:** 43 unit tests for the rules it checks before asking you to sign, plus type checking, linting and a production build.
+- **Program:** 52 integration tests on a local Solana network (Surfpool). They cover every rule above, every error and the attacks found in the security review, and use time travel to check the entry deadline, the judging deadline and the claim window. They also run on Solana's standard test validator, where the 14 time-travel tests are skipped. Rust unit tests check the account sizes; `rustfmt` and `clippy` keep the code clean.
+- **Website:** 46 unit tests for the rules it checks before asking you to sign and for reading program events safely, plus type checking, linting and a production build.
+- **On every push:** GitHub Actions runs all of the above ([CI](https://github.com/secur3shell-ship-it/OpenBounty/actions/workflows/ci.yml)), and checks that the committed program interface and the website's generated client match the code.
 - **On devnet, through the website:** create, enter, vote (winner picked automatically), claim (bounty closes), refund after the deadline (bounty closes), and closing an entry after its bounty closed, all done with real devnet transactions, at desktop and phone widths.
 
 ## Run it yourself
@@ -204,6 +221,12 @@ cargo test -p openbounty_v2                                             # Rust u
 
 `anchor keys sync` changes the program ID in your local copy only; don't commit that change.
 
+## Security
+
+- **Devnet only, not audited.** Don't use it with real money yet.
+- **Internal review (October 2026).** All six instructions were reviewed: signers, account substitution, arithmetic, time windows, closing and rent, and address reuse. One issue was found and fixed: an organizer could have blocked every claim by handing their own wallet to another program, then refunded the prizes. A test now covers that attack.
+- **Report a problem** privately through the repository's Security tab. See [SECURITY.md](SECURITY.md).
+
 ## Roadmap
 
 | Status | Item |
@@ -211,7 +234,8 @@ cargo test -p openbounty_v2                                             # Rust u
 | ✅ Done | Fully funded bounties, on-chain entries, judge voting with automatic winners, claims with a claim window, rule-based refunds, closing and deposit returns |
 | ✅ Done | Website: Explore, Create (with the details-file builder), bounty page with Prizes / Submissions / Judging, Your bounties, Markets, news |
 | ✅ Done | Live on devnet with sample bounties |
-| Next | Security review of the program, and verifiable builds (anyone can check that the deployed program matches this code) |
+| ✅ Done | Internal security review of the program, with fixes and tests; checks on every push (GitHub Actions) |
+| Next | Verifiable builds (anyone can check that the deployed program matches this code) |
 | Next | Upgrade authority moved from one key to a multisig (Squads) |
 | Later | Prizes in other tokens (USDC, USDT, BONK, JUP), and claiming a prize in a different token or on another chain |
 | Later | History of finished bounties (closed bounties currently disappear from the website) |
@@ -246,3 +270,7 @@ Normal Solana transaction fees, plus small refundable storage deposits: about 0.
 
 **Can the program be changed?**
 On devnet it can still be upgraded, by the project's deployer key. Moving that power to a multisig is next on the roadmap, and on mainnet the program will be made unchangeable after an audit.
+
+## License
+
+[MIT](LICENSE)

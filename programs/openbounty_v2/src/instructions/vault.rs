@@ -17,7 +17,12 @@ pub fn pay_from_vault<'info>(
     amount: u64,
 ) -> Result<()> {
     let nonce = [escrow.nonce];
-    let seeds: &[&[u8]] = &[VAULT_SEED, escrow.organizer.as_ref(), &nonce, &[escrow.vault_bump]];
+    let seeds: &[&[u8]] = &[
+        VAULT_SEED,
+        escrow.organizer.as_ref(),
+        &nonce,
+        &[escrow.vault_bump],
+    ];
     transfer(
         CpiContext::new_with_signer(
             system_program.key(),
@@ -49,6 +54,8 @@ pub fn close_if_settled<'info>(
         pay_from_vault(escrow, vault, organizer.clone(), system_program, remainder)?;
     }
 
-    emit!(EscrowClosed { escrow: escrow.key() });
+    emit!(EscrowClosed {
+        escrow: escrow.key()
+    });
     escrow.close(organizer)
 }
