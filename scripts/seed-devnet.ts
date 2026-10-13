@@ -91,10 +91,14 @@ async function main() {
     return { escrow, vault: findVaultPda(program.programId, organizer, nonce)[0] };
   }
 
-  // Reruns reuse an open sample bounty with the same title instead of making another
+  // Reruns reuse an open sample bounty with the same title instead of making another.
+  // An ended one is not reused, so the site always gets bounties that still take entries.
   async function ensure(title: string, prizes: number[], entriesDays: number, deadlineDays: number) {
     const mine = await program.account.escrow.all([{ memcmp: { offset: 8, bytes: organizer.toBase58() } }]);
-    const existing = mine.find((row) => row.account.title === title);
+    const now = Math.floor(Date.now() / 1000);
+    const existing = mine.find(
+      (row) => row.account.title === title && row.account.submissionsDeadline.toNumber() > now,
+    );
     if (existing) {
       console.log(`Reusing "${title}" ${existing.publicKey.toBase58()}`);
       return { escrow: existing.publicKey, vault: findVaultPda(program.programId, organizer, existing.account.nonce)[0] };
