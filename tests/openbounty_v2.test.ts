@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 
 import idl from "../target/idl/openbounty_v2.json";
 import { OpenbountyV2 } from "../target/types/openbounty_v2";
-import { balance, chainNow, expectError, fundedKeypairs, warpTo } from "./helpers/chain";
+import { balance, chainNow, confirmByPolling, expectError, fundedKeypairs, warpTo } from "./helpers/chain";
 import { findEscrowPda, findSubmissionPda, findVaultPda } from "./helpers/pda";
 
 const SOL = web3.LAMPORTS_PER_SOL;
@@ -17,6 +17,7 @@ const MIN_PRIZE = 1_000_000;
 // moved past the entry deadline, the voting deadline and the claim window.
 describe("openbounty_v2", () => {
   const provider = anchor.AnchorProvider.env();
+  confirmByPolling(provider.connection);
   anchor.setProvider(provider);
   const program = anchor.workspace.openbountyV2 as Program<OpenbountyV2>;
   const programId = program.programId;

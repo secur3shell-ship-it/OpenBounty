@@ -38,6 +38,35 @@ export async function warpTo(provider: AnchorProvider, unixSeconds: number): Pro
   throw new Error(`clock did not reach ${unixSeconds}; now ${await chainNow(provider)}`);
 }
 
+/**
+ * Makes `connection.confirmTransaction` poll the signature status until the
+ * wanted commitment instead of waiting for a websocket notification.
+ *
+ * web3.js checks the status once when its signature subscription opens and
+ * otherwise waits for the notification. On a slow machine (CI) the
+ * transaction can still be "processed" at that check and the "confirmed"
+ * notification never arrive, so a transaction that landed fails with "not
+ * confirmed in 30.00 seconds". Anchor's `rpc()` and `sendAndConfirm` both
+ * confirm through this method.
+ */
+export function confirmByPolling(connection: web3.Connection, timeoutMs = 30_000): void {
+  const rank: Record<web3.TransactionConfirmationStatus, number> = { processed: 0, confirmed: 1, finalized: 2 };
+  connection.confirmTransaction = (async (strategy: string | { signature: string }, commitment?: web3.Commitment) => {
+    const signature = typeof strategy === "string" ? strategy : strategy.signature;
+    const wanted = commitment === "processed" ? 0 : commitment === "finalized" ? 2 : 1;
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      const { context, value } = await connection.getSignatureStatuses([signature]);
+      const status = value[0];
+      if (status && (status.err || rank[status.confirmationStatus ?? "processed"] >= wanted)) {
+        return { context, value: { err: status.err } };
+      }
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    throw new web3.TransactionExpiredTimeoutError(signature, timeoutMs / 1000);
+  }) as typeof connection.confirmTransaction;
+}
+
 /** Funds fresh keypairs from the provider wallet. */
 export async function fundedKeypairs(
   provider: AnchorProvider,
