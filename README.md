@@ -9,6 +9,10 @@
 
 Built for [Colosseum's Crypto World's Fair](https://colosseum.com/worldsfair) hackathon (Solana track).
 
+**Pitch:** [watch on Loom](https://www.loom.com/share/02032d58b3424e7fb5531f4d85f6a3ed) (2 min 17 s) · **Product walkthrough:** [watch on Loom](https://www.loom.com/share/189eca42ce964092bf855923be56eb3b) (3 min 54 s)
+
+> **Note on length:** this walkthrough runs **3 min 54 s**, which is about 54 seconds over the hackathon's **3-minute limit** for demo videos. We kept it uncut so the whole flow is shown in one take, on devnet, with real transactions.
+
 ---
 
 ## Contents
